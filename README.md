@@ -3,7 +3,7 @@ python based access to Thunderbird mail
 
 [![Documentation Status](https://readthedocs.org/projects/pyThunderbird/badge/?version=latest)](https://pyThunderbird.readthedocs.io/en/latest/?badge=latest)
 [![pypi](https://img.shields.io/pypi/pyversions/pyThunderbird)](https://pypi.org/project/pyThunderbird/)
-[![Github Actions Build](https://github.com/WolfgangFahl/pyThunderbird/workflows/Build/badge.svg?branch=master)](https://github.com/WolfgangFahl/pyThunderbird/actions?query=workflow%3ABuild+branch%3Amaster)
+[![Github Actions Build](https://github.com/WolfgangFahl/pyThunderbird/workflows/Build/badge.svg?branch=main)](https://github.com/WolfgangFahl/pyThunderbird/actions?query=workflow%3ABuild+branch%3Amaster)
 [![PyPI Status](https://img.shields.io/pypi/v/pyThunderbird.svg)](https://pypi.python.org/pypi/pyThunderbird/)
 [![Downloads](https://pepy.tech/badge/pyThunderbird)](https://pepy.tech/project/pyThunderbird)
 [![GitHub issues](https://img.shields.io/github/issues/WolfgangFahl/pyThunderbird.svg)](https://github.com/WolfgangFahl/pyThunderbird/issues)
