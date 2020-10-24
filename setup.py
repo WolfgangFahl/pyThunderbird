@@ -11,7 +11,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='pyThunderbird',
-    version='0.0.1',
+    version='0.0.2',
 
     packages=['thunderbird', ],
     author='Wolfgang Fahl',
@@ -28,7 +28,8 @@ setup(
     license='Apache License',
     description='python Thunderbird mail access',
     install_requires=[
-          'pylodstorage'
+          'pylodstorage',
+          'PyYAML'
     ],
     classifiers=[
             'Programming Language :: Python',

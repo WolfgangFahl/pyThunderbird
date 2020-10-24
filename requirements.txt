@@ -1,3 +1,5 @@
 # https://github.com/WolfgangFahl/pyLoDStorage
 # https://pypi.org/project/pylodstorage/
 pylodstorage
+# https://pypi.org/project/PyYAML/
+PyYAML
