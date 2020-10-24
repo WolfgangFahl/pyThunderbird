@@ -10,6 +10,25 @@ python based access to Thunderbird mail
 [![GitHub closed issues](https://img.shields.io/github/issues-closed/WolfgangFahl/pyThunderbird.svg)](https://github.com/WolfgangFahl/pyThunderbird/issues/?q=is%3Aissue+is%3Aclosed)
 [![License](https://img.shields.io/github/license/WolfgangFahl/pyThunderbird.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
+Installation
+============
+```bash
+pip install pyThunderbird
+```
+
+Get Sources 
+===========
+```bash
+git clone https://github.com/WolfgangFahl/pyThunderbird
+cd pyThunderbird
+scripts/install
+```
+
+Testing
+=======
+```bash
+scripts/test
+```
 
 ## Documentation
 [Wiki](http://wiki.bitplan.com/index.php/PyThunderbird)
