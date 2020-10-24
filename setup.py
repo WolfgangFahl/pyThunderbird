@@ -13,7 +13,7 @@ setup(
     name='pyThunderbird',
     version='0.0.1',
 
-    packages=['thunderbird',],
+    packages=['thunderbird', ],
     author='Wolfgang Fahl',
     author_email='wf@bitplan.com',
     maintainer='Wolfgang Fahl',

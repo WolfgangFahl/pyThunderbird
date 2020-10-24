@@ -7,8 +7,9 @@ import unittest
 from lodstorage.sql import SQLDB
 from thunderbird.mail import Mail, Thunderbird
 import mailbox
-#import getpass
+# import getpass
 import os
+
 
 class TestMail(unittest.TestCase):
     '''
@@ -17,11 +18,10 @@ class TestMail(unittest.TestCase):
 
     def setUp(self):
         self.debug=False
-        #user=getpass.getuser()
-        #if user!="wf":
+        # user=getpass.getuser()
+        # if user!="wf":
         self.mockMail()
         pass
-
 
     def tearDown(self):
         pass
