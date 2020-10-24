@@ -5,31 +5,34 @@ Created on 2020-10-24
 '''
 from lodstorage.sql import SQLDB
 from pathlib import Path
-from mailbox import mbox
+import mailbox
 import re
 import os
 import urllib
 import yaml
 
+
 class Thunderbird(object):
     profiles={}
     
-    def __init__(self,user):
+    def __init__(self,user,db=None,profile=None):
         '''
         construct a Thunderbird access instance for the given user
         '''
-        profileMap=Thunderbird.getProfileMap()
-        if user in profileMap:
-            profile=profileMap[user]
-            self.user=user
+        self.user=user
+        if db is None and profile is None:
+            profileMap=Thunderbird.getProfileMap()
+            if user in profileMap:
+                profile=profileMap[user]
+            else:
+                raise Exception("user %s missing in .thunderbird.yaml" % user)
             self.db=profile['db']
             self.profile=profile['profile']
-            self.sqlDB=SQLDB(self.db)
         else:
-            raise Exception("user %s missing in .thunderbird.yaml" % user)
+            self.db=db
+            self.profile=profile
+        self.sqlDB=SQLDB(self.db)
         pass
-
-    
      
     @staticmethod
     def getProfileMap():
@@ -84,9 +87,25 @@ where m.headerMessageID==(?)"""
             if os.path.isfile(folderPath):
                 if self.debug:
                     print (folderPath)
-                self.mbox=mbox(folderPath)
+                self.mbox=mailbox.mbox(folderPath)
+                #print(len(self.mbox.keys()))
+                #for key in self.mbox.keys():
+                #    print (key)
                 self.msg=self.mbox.get(messageKey-1)
+                self.mbox.close()
                 pass
+    
+    @staticmethod
+    def create_message(frm, to, content, headers = None):
+        if not headers: 
+            headers = {}
+        m = mailbox.Message()
+        m['from'] = frm
+        m['to'] = to
+        for h,v in headers.items():
+            m[h] = v
+        m.set_payload(content)
+        return m       
                 
         
         
