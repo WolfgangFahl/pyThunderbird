@@ -91,7 +91,16 @@ Send Wikidata mailing list submissions to
         user='wf'
         tb=Thunderbird.get(user)
         self.assertEqual(tb.user,user)
-  
+        
+    def testIssue4(self):
+        '''
+        https://github.com/WolfgangFahl/pyThunderbird/issues/4
+        Folderpath mapping should work on all levels
+        '''
+        folderURI="mailbox://nobody@Local Folders/WF/Friends/Diverse"
+        expectedSbdFolder='/Mail/Local Folders/WF.sbd/Friends.sbd/Diverse'
+        sbdFolder=Mail.toSbdFolder(folderURI)
+        self.assertEqual(sbdFolder,expectedSbdFolder)
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testMail']

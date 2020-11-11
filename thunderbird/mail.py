@@ -54,17 +54,21 @@ class Mail(object):
     classdocs
     '''
 
-    def __init__(self, user,mailid,debug=False):
+    def __init__(self, user,mailid,debug=False,keySearch=True):
         '''
         Constructor
         
         Args:
             user(string): userid of the user 
             mailid(string): unique id of the mail
+            debug(bool): True if debugging should be activated
+            keySearch(bool): True if a slow keySearch should be tried when lookup fails
         '''
         self.tb=Thunderbird.get(user)
+        mailid=re.sub(r"\<(.*)\>",r"\1",mailid)
         self.mailid=mailid
         self.debug=debug
+        self.keySearch=keySearch
         self.msg=None
         query="""select m.*,f.* 
 from  messages m join
@@ -80,21 +84,45 @@ where m.headerMessageID==(?)"""
             folderURI=mailInfo['folderURI']
             messageKey=int(mailInfo['messageKey'])
             folderURI=urllib.parse.unquote(folderURI)
-            folder=folderURI.replace('mailbox://nobody@','/Mail/')
-            # https://stackoverflow.com/a/14007559/1497139
-            folder=re.sub(r"(.*)/(.*)/(.*)",r"\1/\2.sbd/\3",folder)
-            folderPath=self.tb.profile+folder
+            sbdFolder=Mail.toSbdFolder(folderURI)
+            folderPath=self.tb.profile+sbdFolder
             if os.path.isfile(folderPath):
                 if self.debug:
                     print (folderPath)
                 self.mbox=mailbox.mbox(folderPath)
-                #print(len(self.mbox.keys()))
-                #for key in self.mbox.keys():
-                #    print (key)
                 self.msg=self.mbox.get(messageKey-1)
+                # if lookup fails we might loop thru
+                # all messages if this option is active ...
+                if self.msg is None and self.keySearch:
+                    searchId="<%s>" % mailid
+                    for key in self.mbox.keys():
+                        keyMsg=self.mbox.get(key)
+                        msgId=keyMsg.get("Message-Id")
+                        if msgId==searchId:
+                            self.msg=keyMsg
+                            break
+                        pass
                 self.mbox.close()
                 pass
     
+    @staticmethod
+    def toSbdFolder(folderURI):
+        '''
+        get the SBD folder for the given folderURI
+        '''
+        folder=folderURI.replace('mailbox://nobody@','')
+        # https://stackoverflow.com/a/14007559/1497139
+        parts=folder.split("/")
+        sbdFolder="/Mail/"
+        for i,part in enumerate(parts):
+            if i==0: # e.g. "Local Folders" ... 
+                sbdFolder+="%s/" % part
+            elif i<len(parts)-1:
+                sbdFolder+="%s.sbd/" % part
+            else:
+                sbdFolder+="%s" % part           
+        return sbdFolder
+        
     @staticmethod
     def create_message(frm, to, content, headers = None):
         if not headers: 
