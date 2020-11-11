@@ -75,7 +75,7 @@ where m.headerMessageID==(?)"""
         #folderId=maillookup['folderId']
         if self.debug:
             print (maillookup)
-        if len(maillookup)==1:
+        if len(maillookup)>=1:
             mailInfo=maillookup[0]
             folderURI=mailInfo['folderURI']
             messageKey=int(mailInfo['messageKey'])
