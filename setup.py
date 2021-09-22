@@ -5,13 +5,18 @@ from collections import OrderedDict
 
 # read the contents of your README file
 from os import path
-this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+try:
+    long_description = ""
+    with open('README.md', encoding='utf-8') as f:
+        long_description = f.read()
+
+except:
+    print('Curr dir:', os.getcwd())
+    long_description = open('../../README.md').read()
 
 setup(
     name='pyThunderbird',
-    version='0.0.5',
+    version='0.0.6',
 
     packages=['thunderbird', ],
     author='Wolfgang Fahl',
