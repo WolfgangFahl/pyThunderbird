@@ -7,7 +7,7 @@ import unittest
 from lodstorage.sql import SQLDB
 from thunderbird.mail import Mail, Thunderbird
 import mailbox
-# import getpass
+import getpass
 import os
 
 
@@ -18,9 +18,9 @@ class TestMail(unittest.TestCase):
 
     def setUp(self):
         self.debug=False
-        # user=getpass.getuser()
-        # if user!="wf":
-        self.mockMail()
+        user=getpass.getuser()
+        if user!="wf":
+            self.mockMail()
         pass
 
     def tearDown(self):
@@ -43,7 +43,7 @@ class TestMail(unittest.TestCase):
         sqlDB.store(foldersLod,fEntityInfo)
         mboxContent="""From MAILER-DAEMON Sat Oct 24 14:37:31 2020
 From: wikidata-request@lists.wikimedia.org
-Subject: Wikidata Digest, Vol 107, Issue 3
+Subject: Wikidata Digest, Vol 107, Issue 2
 To: wikidata@lists.wikimedia.org
 Reply-To: wikidata@lists.wikimedia.org
 Date: Sat, 03 Oct 2020 12:00:03 +0000
@@ -80,7 +80,7 @@ Send Wikidata mailing list submissions to
         subject=mail.msg.get("subject")
         if self.debug:
             print (subject)
-        self.assertEqual(subject,"Wikidata Digest, Vol 107, Issue 3")
+        self.assertEqual(subject,"Wikidata Digest, Vol 107, Issue 2")
         pass
 
     def testIssue2(self):
@@ -101,6 +101,7 @@ Send Wikidata mailing list submissions to
         expectedSbdFolder='/Mail/Local Folders/WF.sbd/Friends.sbd/Diverse'
         sbdFolder=Mail.toSbdFolder(folderURI)
         self.assertEqual(sbdFolder,expectedSbdFolder)
+        
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testMail']

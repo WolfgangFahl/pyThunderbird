@@ -11,7 +11,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='pyThunderbird',
-    version='0.0.4',
+    version='0.0.5',
 
     packages=['thunderbird', ],
     author='Wolfgang Fahl',
@@ -38,6 +38,10 @@ setup(
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3.9'
     ],
+    entry_points={
+         'console_scripts': [
+             'tbmail = thunderbird.mail:main', 
+      ],
     long_description=long_description,
     long_description_content_type='text/markdown'
 )
