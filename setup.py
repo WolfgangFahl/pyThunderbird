@@ -38,7 +38,8 @@ setup(
     long_description_content_type='text/markdown',
     install_requires=[
           'pylodstorage',
-          'PyYAML'
+          'PyYAML',
+          'Flask'
     ],
     classifiers=[
             'Programming Language :: Python',
