@@ -145,7 +145,7 @@ where m.headerMessageID==(?)"""
         return m       
                 
     
-__version__ = "0.0.7"
+__version__ = "0.0.8"
 __date__ = '2021-09-23'
 __updated__ = '2021-09-23'    
 
