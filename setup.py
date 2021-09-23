@@ -5,6 +5,7 @@ from collections import OrderedDict
 
 # read the contents of your README file
 from os import path
+import os
 
 long_description = ""
 try:
