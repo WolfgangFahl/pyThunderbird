@@ -188,8 +188,11 @@ USAGE
   
         # Process arguments
         args = parser.parse_args(argv)
-        mail=Mail(user=args.user,mailid=args.id,debug=args.debug)
-        print (mail.msg)
+        if args.user is None or args.id is None:
+            parser.print_help()
+        else:
+            mail=Mail(user=args.user,mailid=args.id,debug=args.debug)
+            print (mail.msg)
 
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###

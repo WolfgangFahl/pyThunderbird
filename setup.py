@@ -51,6 +51,7 @@ setup(
     entry_points={
          'console_scripts': [
              'tbmail = thunderbird.mail:main', 
+             'tbmailwebserver = thunderbird.webserver:main'
       ],
     }
 )
