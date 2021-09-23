@@ -5,8 +5,9 @@ from collections import OrderedDict
 
 # read the contents of your README file
 from os import path
+
+long_description = ""
 try:
-    long_description = ""
     with open('README.md', encoding='utf-8') as f:
         long_description = f.read()
 
@@ -16,7 +17,7 @@ except:
 
 setup(
     name='pyThunderbird',
-    version='0.0.6',
+    version='0.0.7',
 
     packages=['thunderbird', ],
     author='Wolfgang Fahl',
@@ -32,6 +33,8 @@ setup(
     ),
     license='Apache License',
     description='python Thunderbird mail access',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     install_requires=[
           'pylodstorage',
           'PyYAML'
@@ -47,6 +50,5 @@ setup(
          'console_scripts': [
              'tbmail = thunderbird.mail:main', 
       ],
-    long_description=long_description,
-    long_description_content_type='text/markdown'
+    }
 )
