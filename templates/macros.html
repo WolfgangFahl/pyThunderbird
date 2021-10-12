@@ -1,0 +1,111 @@
+{# 
+   Useful Jinja Template Macros
+   
+   e.g. table4DictList
+   https://stackoverflow.com/a/42848018/1497139
+#}
+{# show html header #}
+{% macro header(title) -%}
+<!doctype html>
+<html lang="en">
+  <head>
+  	{% block head %}
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+ 	{% block styles %}
+    <!-- Bootstrap CSS -->
+    {{ bootstrap.load_css() }}
+    {% endblock %}
+ 
+    {% if title is not none %}<title>{{ title }}</title>{%endif %}
+    {% endblock %}
+  </head>
+  <body>
+{%- endmacro %}
+{# show html footer #}
+{% macro footer() -%}
+		{% block scripts %}
+        <!-- Optional JavaScript -->
+        {{ bootstrap.load_js() }}
+        {% endblock %}
+	</body>
+</html>
+{%- endmacro %}    
+{# menu see https://getbootstrap.com/docs/4.0/components/navbar/ #}
+{% macro menu(menuList) -%}
+    <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mr-auto">
+    {% if menuList %}
+    {% for menuItem in menuList %}
+    			{{ menuItem|safe }}
+    {% endfor %}
+    {% endif %}
+    		</ul>
+ 		</div>   
+	</nav>
+{%- endmacro %}
+{# table for dict list #}
+{% macro table4DictList(dictList,tableId=none,lodKeys=none,tableHeaders=none) -%}
+{% if lodKeys is undefined -%}
+   {%- set lodKeys = dictList[0] -%}
+{%- endif %}
+{% if tableHeaders is undefined -%}
+   {%- set tableHeaders = lodKeys -%}
+{%- endif %}
+<table {% if tableId is not none %}id="{{ tableId }}"{%endif %} class="table table-bordered table-hover">
+  <!-- table header -->
+  {% if dictList %}
+  <thead class="thead-light">
+  	<tr>
+  		<th>#</th>
+    	{% for key in tableHeaders %}
+    	<th> {{ key }} </th>
+    	{% endfor %}
+ 	</tr>
+  <thead>
+  <tbody>	
+    <!-- table rows -->
+    {% for dict_item in dictList %}
+    <tr>
+       <td> {{loop.index}} </td>
+       {% for key in lodKeys %}
+       {% set value = dict_item[key] -%}
+       <td>  {% if value is not none %}{{ value|safe }} {%endif %} </td>
+       {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>  
+  {% endif %}
+</table>
+{%- endmacro %}
+{% macro loadDataTable() -%}
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.23/b-1.6.5/b-html5-1.6.5/r-2.2.7/sb-1.0.1/sl-1.3.1/datatables.min.css"/>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/pdfmake.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/vfs_fonts.js"></script>
+  <script type="text/javascript" src="https://cdn.datatables.net/v/dt/jszip-2.5.0/dt-1.10.23/b-1.6.5/b-html5-1.6.5/r-2.2.7/sb-1.0.1/sl-1.3.1/datatables.min.js"></script>
+{%- endmacro %}
+{% macro activateDataTable() -%}
+    <script type="text/javascript">
+    $(document).ready(function() {
+    	$('.table').DataTable({
+    		lengthMenu: [[10, 50, 100, 500, 1000, -1 ], [10, 50, 100, 500, 1000, "all"]],
+    		dom: 'Blfrtip',
+    		select: true,
+    		"pagingType": "full_numbers",
+		    buttons: [
+		        'copyHtml5',
+		        'excelHtml5',
+		        'csvHtml5',
+        		'selectAll',
+       		 	'selectNone'
+	    	],
+		});
+	});
+    </script>
+{%- endmacro %}

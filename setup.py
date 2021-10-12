@@ -18,7 +18,7 @@ except:
 
 setup(
     name='pyThunderbird',
-    version='0.0.8',
+    version='0.0.9',
 
     packages=['thunderbird', ],
     author='Wolfgang Fahl',
@@ -39,7 +39,8 @@ setup(
     install_requires=[
           'pylodstorage',
           'PyYAML',
-          'Flask'
+          'Flask',
+          'pyFlaskBootstrap4'
     ],
     classifiers=[
             'Programming Language :: Python',
