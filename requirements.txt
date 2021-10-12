@@ -6,3 +6,5 @@ PyYAML
 # web server
 # https://pypi.org/project/Flask/
 Flask
+# https://github.com/WolfgangFahl/pyFlaskBootstrap4
+pyFlaskBootstrap4
