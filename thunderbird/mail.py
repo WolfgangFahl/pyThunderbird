@@ -5,8 +5,8 @@ Created on 2020-10-24
 '''
 from lodstorage.sql import SQLDB
 from pathlib import Path
-import html
 import mailbox
+import email
 from email.message import EmailMessage
 import re
 import os
@@ -124,11 +124,15 @@ where m.headerMessageID==(?)"""
                     searchTime.time()
                 self.mbox.close()
                 if self.rawMsg is not None:
-                    self.msg=EmailMessage()
-                    self.msg.set_content(self.rawMsg)
+                    self.msg=self.rawMsg
+                    #self.msg=EmailMessage()
+                    #self.msg.set_content(self.rawMsg)
+                    # self.rawMsg is a mboxMessage
+                    #self.msg=email.message_from_string(self.rawMsg)
                     
                     for key in self.msg.keys():
-                        self.headers[key]=self.msg.get(key)
+                        if not key.startswith("X-"):
+                            self.headers[key]=self.msg.get(key)
                     self.textMsg=""
                     self.html=""
                     # https://stackoverflow.com/a/43833186/1497139
@@ -137,6 +141,8 @@ where m.headerMessageID==(?)"""
                         # that contains further parts... Message is organized like a tree
                         contentType=part.get_content_type()
                         charset = part.get_content_charset()
+                        if charset is None:
+                            charset='utf-8'
                         if contentType == 'text/plain' or contentType== 'text/html':
                             part_str = part.get_payload(decode=1)
                             rawPart=part_str.decode(charset)

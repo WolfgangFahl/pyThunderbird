@@ -19,8 +19,8 @@ class TestMail(unittest.TestCase):
     def setUp(self):
         self.debug=False
         user=getpass.getuser()
-        if user!="wf":
-            self.mockMail()
+        #if user!="wf":
+        self.mockMail()
         pass
 
     def tearDown(self):
