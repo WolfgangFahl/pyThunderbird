@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as macros %}
+{% block content %}
+{% if title is not none %}<h2>{{ title }}</h2>{%endif %}
+
+<table>
+{% for key, value in mail.headers.items() %}
+   <tr>
+        <th> {{ key }} </th>
+        <td> {{ value }} </td>
+   </tr>
+{% endfor %}
+</table>
+<h3>Text</h3>
+<pre>{{mail.txtMsg}}</pre>
+<h3>HTML</h3>
+{{mail.html | safe }}
+{% endblock %}
+{% block scripts %}
+    {{ super() }}
+{% endblock %}

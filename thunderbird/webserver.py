@@ -7,6 +7,7 @@ import os
 from flask import render_template, url_for
 from fb4.widgets import MenuItem
 from fb4.app import AppWrap
+from thunderbird.mail import Mail, Thunderbird
 
 class WebServer(AppWrap):
     ''' 
@@ -38,6 +39,10 @@ class WebServer(AppWrap):
         def index():
             return self.index()
         
+        @self.app.route('/<user>/<mailid>')
+        def showMail(user:str,mailid:str):
+            return self.showMail(user,mailid)
+        
     def getMenuList(self):
         '''
         get the list of menu items for the main menu
@@ -52,6 +57,24 @@ class WebServer(AppWrap):
             MenuItem('https://github.com/WolfgangFahl/pyThunderbird','github'),
             ]
         return menuList
+    
+    def initUsers(self,userList):
+        '''
+        initialize my users
+        '''
+        self.mailboxes={}
+        for user in userList:
+            self.mailboxes[user]=Thunderbird.get(user)
+        pass
+    
+    def showMail(self,user:str,mailid:str):
+        '''
+        show the given mail of the given user
+        '''
+        if user in self.mailboxes:
+            tb=self.mailboxes[user]
+        mail=Mail(user=user,mailid=mailid,tb=tb,debug=self.verbose)
+        return render_template('mail.html',mail=mail,menuList=self.getMenuList())
 
     def index(self):
         """ render index page with the given parameters"""
@@ -64,9 +87,11 @@ def main():
     web=WebServer()
     parser=web.getParser(description="Thunderbird mail webservice")
     parser.add_argument('--verbose',default=True,action="store_true",help="should relevant server actions be logged [default: %(default)s]")
+    parser.add_argument('-u', '--user-list', default=[], nargs='+')
     args=parser.parse_args()
     web.optionalDebug(args)
     web.verbose=args.verbose
+    web.initUsers(args.user_list)
     web.run(args)
     
 if __name__ == '__main__':

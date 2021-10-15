@@ -4,7 +4,6 @@ from setuptools import setup
 from collections import OrderedDict
 
 # read the contents of your README file
-from os import path
 import os
 
 long_description = ""
@@ -18,7 +17,7 @@ except:
 
 setup(
     name='pyThunderbird',
-    version='0.0.9',
+    version='0.0.10',
 
     packages=['thunderbird', ],
     author='Wolfgang Fahl',
