@@ -10,10 +10,8 @@
         <td> {{ value }} </td>
    </tr>
 {% endfor %}
+	<tr> <th> text </th><td>{{mail.txtMsg}}</td>
 </table>
-<h3>Text</h3>
-<pre>{{mail.txtMsg}}</pre>
-<h3>HTML</h3>
 {{mail.html | safe }}
 {% endblock %}
 {% block scripts %}
