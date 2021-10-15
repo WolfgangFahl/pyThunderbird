@@ -85,6 +85,7 @@ class Mail(object):
         self.mailid=mailid
         self.keySearch=keySearch
         self.rawMsg=None
+        self.headers={}
         query="""select m.*,f.* 
 from  messages m join
 folderLocations f on m.folderId=f.id
@@ -125,7 +126,7 @@ where m.headerMessageID==(?)"""
                 if self.rawMsg is not None:
                     self.msg=EmailMessage()
                     self.msg.set_content(self.rawMsg)
-                    self.headers={}
+                    
                     for key in self.msg.keys():
                         self.headers[key]=self.msg.get(key)
                     self.textMsg=""
