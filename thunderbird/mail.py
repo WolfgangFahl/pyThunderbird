@@ -5,12 +5,15 @@ Created on 2020-10-24
 '''
 from lodstorage.sql import SQLDB
 from pathlib import Path
+import html
 import mailbox
+from email.message import EmailMessage
 import re
 import os
 import sys
 import urllib
 import yaml
+from thunderbird.profiler import Profiler
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
 class Thunderbird(object):
@@ -61,7 +64,7 @@ class Mail(object):
     classdocs
     '''
 
-    def __init__(self, user,mailid,debug=False,keySearch=True):
+    def __init__(self, user,mailid,tb=None,debug=False,keySearch=True):
         '''
         Constructor
         
@@ -72,13 +75,16 @@ class Mail(object):
             keySearch(bool): True if a slow keySearch should be tried when lookup fails
         '''
         self.debug=debug
-        self.tb=Thunderbird.get(user)
+        if tb is None:
+            self.tb=Thunderbird.get(user)
+        else:
+            self.tb=tb
         if self.debug:
             print(f"Searching for mail with id {mailid} for user {user}")
         mailid=re.sub(r"\<(.*)\>",r"\1",mailid)
         self.mailid=mailid
         self.keySearch=keySearch
-        self.msg=None
+        self.rawMsg=None
         query="""select m.*,f.* 
 from  messages m join
 folderLocations f on m.folderId=f.id
@@ -99,20 +105,46 @@ where m.headerMessageID==(?)"""
                 if self.debug:
                     print (folderPath)
                 self.mbox=mailbox.mbox(folderPath)
-                self.msg=self.mbox.get(messageKey-1)
+                getTime=Profiler(f"mbox.get {messageKey-1}",profile=self.debug)
+                self.rawMsg=self.mbox.get(messageKey-1)
+                getTime.time()
                 # if lookup fails we might loop thru
                 # all messages if this option is active ...
-                if self.msg is None and self.keySearch:
+                if self.rawMsg is None and self.keySearch:
                     searchId="<%s>" % mailid
+                    searchTime=Profiler(f"keySearch {searchId} after mbox.get failed",profile=self.debug)
                     for key in self.mbox.keys():
                         keyMsg=self.mbox.get(key)
                         msgId=keyMsg.get("Message-Id")
                         if msgId==searchId:
-                            self.msg=keyMsg
+                            self.rawMsg=keyMsg
                             break
                         pass
+                    searchTime.time()
                 self.mbox.close()
-                pass
+                if self.rawMsg is not None:
+                    self.msg=EmailMessage()
+                    self.msg.set_content(self.rawMsg)
+                    self.headers={}
+                    for key in self.msg.keys():
+                        self.headers[key]=self.msg.get(key)
+                    self.textMsg=""
+                    self.html=""
+                    # https://stackoverflow.com/a/43833186/1497139
+                    for part in self.msg.walk():
+                        # each part is a either non-multipart, or another multipart message
+                        # that contains further parts... Message is organized like a tree
+                        contentType=part.get_content_type()
+                        charset = part.get_content_charset()
+                        if contentType == 'text/plain' or contentType== 'text/html':
+                            part_str = part.get_payload(decode=1)
+                            rawPart=part_str.decode(charset)
+                            if contentType == 'text/plain':
+                                self.textMsg+=rawPart
+                            if contentType == 'text/html':
+                                self.html+=rawPart
+                        pass
+        pass
     
     @staticmethod
     def toSbdFolder(folderURI):
