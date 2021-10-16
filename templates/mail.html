@@ -5,7 +5,7 @@
   <tr><th>{{loopIndex}}:</th><td>{{part.get_content_type()}}</td><td>{{part.get_content_charset()}}</td><td style='text-align:right'><a href='{{ url_for('downloadPart',user=mail.user,mailid=mail.mailid,partIndex=loopIndex) }}'>{{part.get_param('name')}}({{part.length}})</a></td><tr>
 {%- endmacro %}
 {% macro tableLine(key,value) -%}
-  <tr><th>{{key}}:</th><td>{{value}}</td><tr>
+  <tr><th>{{key}}:</th><td>{{value|safe}}</td><tr>
 {%- endmacro %}
 {% macro headerLine(key) -%}
 {{ tableLine(key,mail.headers[key])}}
@@ -14,8 +14,8 @@
 <table id='relevantHeaderTable'>
 {{ tableLine("User",mail.user) }}
 {{ tableLine("Folder",mail.folder) }}
-{{ headerLine("From") }}
-{{ headerLine("To") }}
+{{ tableLine("From",mail.fromUrl) }}
+{{ tableLine("To",mail.toUrl) }}
 {{ headerLine("Date") }}
 {{ headerLine("Subject") }}
 </table>

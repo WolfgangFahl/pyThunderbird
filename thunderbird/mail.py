@@ -8,6 +8,7 @@ from pathlib import Path
 import sqlite3
 from collections import OrderedDict
 import mailbox
+from email.header import decode_header, make_header
 import re
 import os
 import sys
@@ -91,6 +92,8 @@ class Mail(object):
         self.keySearch=keySearch
         self.rawMsg=None
         self.headers={}
+        self.fromUrl=None
+        self.toUrl=None
         query="""select m.*,f.* 
 from  messages m join
 folderLocations f on m.folderId=f.id
@@ -130,7 +133,8 @@ where m.headerMessageID==(?)"""
                 self.mbox.close()
                 if self.msg is not None:
                     for key in self.msg.keys():
-                        self.headers[key]=self.msg.get(key)
+                        #https://stackoverflow.com/a/21715870/1497139
+                        self.headers[key]=make_header(decode_header(self.msg.get(key)))
                     self.txtMsg=""
                     self.html=""
                     # https://stackoverflow.com/a/43833186/1497139
@@ -157,6 +161,12 @@ where m.headerMessageID==(?)"""
                         pass
         # sort the headers
         self.headers=OrderedDict(sorted(self.headers.items()))
+        if "From" in self.headers:
+            fromAdr=self.headers["From"]
+            self.fromUrl=f"<a href='mailto:{fromAdr}'>{fromAdr}</a>"
+        if "To" in self.headers:
+            toAdr=self.headers["To"]
+            self.toUrl=f"<a href='mailto:{toAdr}'>{toAdr}</a>"
         pass
     
     def partAsFile(self,folder,partIndex):

@@ -70,11 +70,15 @@ Send Wikidata mailing list submissions to
         mbox.add(message)
         mbox.close()
         
+    def getMockedMail(self):
+        mail=Mail("wf","mailman.45.1601640003.19840.wikidata@lists.wikimedia.org",debug=self.debug)
+        return mail
+    
     def testIssue1(self):
         '''
         test Mail access
         '''
-        mail=Mail("wf","mailman.45.1601640003.19840.wikidata@lists.wikimedia.org",debug=self.debug)
+        mail=self.getMockedMail()
         self.assertEqual(mail.tb.user,'wf')
         self.assertTrue(mail.msg is not None)
         subject=mail.msg.get("subject")
@@ -103,6 +107,16 @@ Send Wikidata mailing list submissions to
         sbdFolder,folder=Mail.toSbdFolder(folderURI)
         self.assertEqual(sbdFolder,expectedSbdFolder)
         self.assertEqual(folder,expectedFolder)
+        
+        
+    def testIssue8(self):
+        '''
+        https://github.com/WolfgangFahl/pyThunderbird/issues/8
+        make from and to headers clickable to allow replying to mail just displayed
+        '''
+        mail=self.getMockedMail()
+        self.assertEqual(mail.fromUrl,"<a href='mailto:wikidata-request@lists.wikimedia.org'>wikidata-request@lists.wikimedia.org</a>")
+        self.assertEqual(mail.toUrl,"<a href='mailto:wikidata@lists.wikimedia.org'>wikidata@lists.wikimedia.org</a>")
         
 
 if __name__ == "__main__":
