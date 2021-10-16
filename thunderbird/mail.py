@@ -5,9 +5,8 @@ Created on 2020-10-24
 '''
 from lodstorage.sql import SQLDB
 from pathlib import Path
+from collections import OrderedDict
 import mailbox
-import email
-from email.message import EmailMessage
 import re
 import os
 import sys
@@ -75,6 +74,7 @@ class Mail(object):
             keySearch(bool): True if a slow keySearch should be tried when lookup fails
         '''
         self.debug=debug
+        self.user=user
         if tb is None:
             self.tb=Thunderbird.get(user)
         else:
@@ -100,43 +100,42 @@ where m.headerMessageID==(?)"""
             folderURI=mailInfo['folderURI']
             messageKey=int(mailInfo['messageKey'])
             folderURI=urllib.parse.unquote(folderURI)
-            sbdFolder=Mail.toSbdFolder(folderURI)
+            sbdFolder,self.folder=Mail.toSbdFolder(folderURI)
             folderPath=self.tb.profile+sbdFolder
             if os.path.isfile(folderPath):
                 if self.debug:
                     print (folderPath)
                 self.mbox=mailbox.mbox(folderPath)
                 getTime=Profiler(f"mbox.get {messageKey-1}",profile=self.debug)
-                self.rawMsg=self.mbox.get(messageKey-1)
+                self.msg=self.mbox.get(messageKey-1)
                 getTime.time()
                 # if lookup fails we might loop thru
                 # all messages if this option is active ...
-                if self.rawMsg is None and self.keySearch:
+                if self.msg is None and self.keySearch:
                     searchId="<%s>" % mailid
                     searchTime=Profiler(f"keySearch {searchId} after mbox.get failed",profile=self.debug)
                     for key in self.mbox.keys():
                         keyMsg=self.mbox.get(key)
                         msgId=keyMsg.get("Message-Id")
                         if msgId==searchId:
-                            self.rawMsg=keyMsg
+                            self.msg=keyMsg
                             break
                         pass
                     searchTime.time()
                 self.mbox.close()
-                if self.rawMsg is not None:
-                    self.msg=self.rawMsg
-                    #self.msg=EmailMessage()
-                    #self.msg.set_content(self.rawMsg)
-                    # self.rawMsg is a mboxMessage
-                    #self.msg=email.message_from_string(self.rawMsg)
-                    
+                if self.msg is not None:
                     for key in self.msg.keys():
-                        if not key.startswith("X-"):
-                            self.headers[key]=self.msg.get(key)
-                    self.textMsg=""
+                        self.headers[key]=self.msg.get(key)
+                    self.txtMsg=""
                     self.html=""
                     # https://stackoverflow.com/a/43833186/1497139
+                    self.msgParts=[]
+                    # decode parts
+                    # https://stackoverflow.com/questions/59554237/how-to-handle-all-charset-and-content-type-when-reading-email-from-imap-lib-in-p
+                    # https://gist.github.com/miohtama/5389146
                     for part in self.msg.walk():
+                        self.msgParts.append(part)
+                        part.length=len(part._payload)
                         # each part is a either non-multipart, or another multipart message
                         # that contains further parts... Message is organized like a tree
                         contentType=part.get_content_type()
@@ -147,29 +146,57 @@ where m.headerMessageID==(?)"""
                             part_str = part.get_payload(decode=1)
                             rawPart=part_str.decode(charset)
                             if contentType == 'text/plain':
-                                self.textMsg+=rawPart
+                                self.txtMsg+=rawPart
                             if contentType == 'text/html':
                                 self.html+=rawPart
                         pass
+        # sort the headers
+        self.headers=OrderedDict(sorted(self.headers.items()))
         pass
+    
+    def partAsFile(self,folder,partIndex):
+        '''
+        save the given part to a file and return the filename
+        '''
+        # TODO: check Index 
+        part=self.msgParts[partIndex]
+        contentType=part.get_content_type()
+        charset = part.get_content_charset()
+        # FIXME derive filename from part
+        defaultName="test.pdf"
+        filename = part.get_param('name') or defaultName
+        f = open(f"{folder}/{filename}", 'wb')
+        f.write(part.get_payload(decode=1))
+        f.close()
+        return filename
+     
     
     @staticmethod
     def toSbdFolder(folderURI):
         '''
-        get the SBD folder for the given folderURI
+        get the SBD folder for the given folderURI as a tuple
+        
+        Args:
+            folderURI(str): the folder uri
+        Returns:
+            sbdFolder(str): the prefix
+            folder(str): the local path
         '''
         folder=folderURI.replace('mailbox://nobody@','')
         # https://stackoverflow.com/a/14007559/1497139
         parts=folder.split("/")
         sbdFolder="/Mail/"
+        folder=""
         for i,part in enumerate(parts):
             if i==0: # e.g. "Local Folders" ... 
-                sbdFolder+="%s/" % part
+                sbdFolder+=f"{part}/" 
             elif i<len(parts)-1:
-                sbdFolder+="%s.sbd/" % part
+                sbdFolder+=f"{part}.sbd/" 
+                folder+=f"{part}/"
             else:
-                sbdFolder+="%s" % part           
-        return sbdFolder
+                sbdFolder+=f"{part}"
+                folder+=f"{part}"           
+        return sbdFolder,folder
         
     @staticmethod
     def create_message(frm, to, content, headers = None):
