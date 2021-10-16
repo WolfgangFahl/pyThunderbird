@@ -3,7 +3,9 @@ Created on 2021-09-23
 
 @author: wf
 '''
-import os
+
+import os.path
+from datetime import datetime
 from flask import render_template, url_for, send_from_directory
 from fb4.widgets import MenuItem
 from fb4.app import AppWrap
@@ -94,9 +96,29 @@ class WebServer(AppWrap):
         filename=mail.partAsFile(uploads,partIndex-1)
         return send_from_directory(directory=uploads, path=filename)
     
+    def getUserInfo(self):
+        '''
+        Returns:
+            list: a list of dict of user infos
+        '''
+        userInfos=[]
+        for user,mailbox in self.mailboxes.items():
+            dbtime=datetime.fromtimestamp(os.path.getmtime(mailbox.db))
+            dbtimestr=dbtime.strftime("%Y-%m-%d %H:%M:%S")
+            userInfo={
+                'user': user,
+                'updated': dbtimestr
+                
+            }
+            userInfos.append(userInfo)
+        lodKeys=["user","updated"]    
+        tableHeaders=lodKeys
+        return userInfos,lodKeys,tableHeaders
+    
     def index(self):
         """ render index page with the given parameters"""
-        return render_template('index.html',menuList=self.getMenuList())
+        dictList,lodKeys,tableHeaders=self.getUserInfo()
+        return render_template('index.html',menuList=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
 
 def main():
     '''
