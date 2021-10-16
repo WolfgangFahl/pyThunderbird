@@ -4,7 +4,7 @@ Created on 2021-09-23
 @author: wf
 '''
 import os
-from flask import render_template, url_for
+from flask import render_template, url_for, send_from_directory
 from fb4.widgets import MenuItem
 from fb4.app import AppWrap
 from thunderbird.mail import Mail, Thunderbird
@@ -39,9 +39,13 @@ class WebServer(AppWrap):
         def index():
             return self.index()
         
-        @self.app.route('/<user>/<mailid>')
+        @self.app.route('/mail/<user>/<mailid>')
         def showMail(user:str,mailid:str):
             return self.showMail(user,mailid)
+        
+        @self.app.route('/part/<user>/<mailid>/<int:partIndex>')
+        def downloadPart(user:str,mailid:str,partIndex:int):
+            return self.downloadPart(user,mailid,partIndex)
         
     def getMenuList(self):
         '''
@@ -76,6 +80,20 @@ class WebServer(AppWrap):
         mail=Mail(user=user,mailid=mailid,tb=tb,debug=self.verbose)
         return render_template('mail.html',mail=mail,menuList=self.getMenuList())
 
+    def downloadPart(self,user:str,mailid:str,partIndex:int):
+        '''
+        show the
+        '''
+        if user in self.mailboxes:
+            tb=self.mailboxes[user]
+        mail=Mail(user=user,mailid=mailid,tb=tb,debug=self.verbose)
+        # https://stackoverflow.com/questions/24577349/flask-download-a-file
+        # TODO FIXME ... make configurable and secure
+        uploads="/tmp/uploads"
+        os.makedirs(uploads, exist_ok=True)
+        filename=mail.partAsFile(uploads,partIndex-1)
+        return send_from_directory(directory=uploads, path=filename)
+    
     def index(self):
         """ render index page with the given parameters"""
         return render_template('index.html',menuList=self.getMenuList())

@@ -1,18 +1,42 @@
 {% extends 'base.html' %}
 {% import 'macros.html' as macros %}
 {% block content %}
+{% macro mailPartRow(mail,loopIndex,part) -%}
+  <tr><th>{{loopIndex}}:</th><td>{{part.get_content_type()}}</td><td>{{part.get_content_charset()}}</td><td style='text-align:right'><a href='{{ url_for('downloadPart',user=mail.user,mailid=mail.mailid,partIndex=loopIndex) }}'>{{part.get_param('name')}}({{part.length}})</a></td><tr>
+{%- endmacro %}
+{% macro tableLine(key,value) -%}
+  <tr><th>{{key}}:</th><td>{{value}}</td><tr>
+{%- endmacro %}
+{% macro headerLine(key) -%}
+{{ tableLine(key,mail.headers[key])}}
+{%- endmacro %}
 {% if title is not none %}<h2>{{ title }}</h2>{%endif %}
-
-<table>
-{% for key, value in mail.headers.items() %}
-   <tr>
-        <th> {{ key }} </th>
-        <td> {{ value }} </td>
-   </tr>
-{% endfor %}
-	<tr> <th> text </th><td>{{mail.txtMsg}}</td>
+<table id='relevantHeaderTable'>
+{{ tableLine("User",mail.user) }}
+{{ tableLine("Folder",mail.folder) }}
+{{ headerLine("From") }}
+{{ headerLine("To") }}
+{{ headerLine("Date") }}
+{{ headerLine("Subject") }}
 </table>
+{{ macros.toggleText('relevantHeaderTable','info') }}{{ macros.toggleText('txtMsg','text') }}{{ macros.toggleText('htmlMsg','html') }}{{ macros.toggleText('headerTable','headers') }}{{ macros.toggleText('messageParts','parts') }} 
+<table id='headerTable' style='display:none'>
+{% for key, value in mail.headers.items() %}
+{{ tableLine(key,value) }}
+{% endfor %}
+</table>
+<table id='messageParts' style='display:none'>
+<tr><th>#</th><th>type</th><th>charset</th><th>len</th></tr>
+{% for part in mail.msgParts %}
+{{ mailPartRow(mail,loop.index,part) }}
+{% endfor %}
+</table>
+<hr>
+<p id='txtMsg'>{{mail.txtMsg}}</p>
+<hr>
+<div id='htmlMsg'>
 {{mail.html | safe }}
+</div>
 {% endblock %}
 {% block scripts %}
     {{ super() }}

@@ -17,9 +17,12 @@ except:
 
 setup(
     name='pyThunderbird',
-    version='0.0.10',
+    version='0.0.11',
 
     packages=['thunderbird', ],
+    package_data={
+          'templates': ['*.html'],
+    },
     author='Wolfgang Fahl',
     author_email='wf@bitplan.com',
     maintainer='Wolfgang Fahl',
