@@ -154,12 +154,15 @@ where m.headerMessageID==(?)"""
                         if contentType == 'text/plain' or contentType== 'text/html':
                             part_str = part.get_payload(decode=1)
                             rawPart=part_str.decode(charset)
+                            filename = decode_header(part.get_param('name'))
+                            if filename:
+                                part.filename=filename
+                            else:
+                                part.filename=f"part{len(self.msgParts)}"
                             if contentType == 'text/plain':
                                 self.txtMsg+=rawPart
                             elif contentType == 'text/html':
                                 self.html+=rawPart
-                            else:
-                                part.filename = decode_header(part.get_param('name'))
                         pass
         # sort the headers
         self.headers=OrderedDict(sorted(self.headers.items()))
