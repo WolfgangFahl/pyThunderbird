@@ -154,9 +154,9 @@ where m.headerMessageID==(?)"""
                         if contentType == 'text/plain' or contentType== 'text/html':
                             part_str = part.get_payload(decode=1)
                             rawPart=part_str.decode(charset)
-                            filename = decode_header(part.get_param('name'))
-                            if filename:
-                                part.filename=filename
+                            partname=part.get_param('name')
+                            if partname:
+                                part.filename=decode_header(partname)
                             else:
                                 part.filename=f"part{len(self.msgParts)}"
                             if contentType == 'text/plain':
