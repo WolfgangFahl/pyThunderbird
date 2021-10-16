@@ -134,7 +134,7 @@ where m.headerMessageID==(?)"""
                 if self.msg is not None:
                     for key in self.msg.keys():
                         #https://stackoverflow.com/a/21715870/1497139
-                        self.headers[key]=make_header(decode_header(self.msg.get(key)))
+                        self.headers[key]=str(make_header(decode_header(self.msg.get(key))))
                     self.txtMsg=""
                     self.html=""
                     # https://stackoverflow.com/a/43833186/1497139
@@ -153,7 +153,7 @@ where m.headerMessageID==(?)"""
                             charset='utf-8'
                         partname=part.get_param('name')
                         if partname:
-                            part.filename=decode_header(partname)
+                            part.filename=str(make_header(decode_header(partname)))
                         else:
                             part.filename=f"part{len(self.msgParts)}"
                         if contentType == 'text/plain' or contentType== 'text/html':
@@ -173,6 +173,7 @@ where m.headerMessageID==(?)"""
             toAdr=self.headers["To"]
             self.toUrl=f"<a href='mailto:{toAdr}'>{toAdr}</a>"
         pass
+    
     
     def partAsFile(self,folder,partIndex):
         '''
