@@ -156,8 +156,10 @@ where m.headerMessageID==(?)"""
                             rawPart=part_str.decode(charset)
                             if contentType == 'text/plain':
                                 self.txtMsg+=rawPart
-                            if contentType == 'text/html':
+                            elif contentType == 'text/html':
                                 self.html+=rawPart
+                            else:
+                                part.filename = decode_header(part.get_param('name'))
                         pass
         # sort the headers
         self.headers=OrderedDict(sorted(self.headers.items()))
@@ -175,15 +177,10 @@ where m.headerMessageID==(?)"""
         '''
         # TODO: check Index 
         part=self.msgParts[partIndex]
-        contentType=part.get_content_type()
-        charset = part.get_content_charset()
-        # FIXME derive filename from part
-        defaultName="test.pdf"
-        filename = make_header(decode_header(part.get_param('name'))) or defaultName
-        f = open(f"{folder}/{filename}", 'wb')
+        f = open(f"{folder}/{part.filename}", 'wb')
         f.write(part.get_payload(decode=1))
         f.close()
-        return filename
+        return part.filename
      
     
     @staticmethod
