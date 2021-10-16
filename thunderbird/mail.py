@@ -151,14 +151,14 @@ where m.headerMessageID==(?)"""
                         charset = part.get_content_charset()
                         if charset is None:
                             charset='utf-8'
+                        partname=part.get_param('name')
+                        if partname:
+                            part.filename=decode_header(partname)
+                        else:
+                            part.filename=f"part{len(self.msgParts)}"
                         if contentType == 'text/plain' or contentType== 'text/html':
                             part_str = part.get_payload(decode=1)
                             rawPart=part_str.decode(charset)
-                            partname=part.get_param('name')
-                            if partname:
-                                part.filename=decode_header(partname)
-                            else:
-                                part.filename=f"part{len(self.msgParts)}"
                             if contentType == 'text/plain':
                                 self.txtMsg+=rawPart
                             elif contentType == 'text/html':
