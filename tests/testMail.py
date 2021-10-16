@@ -99,8 +99,10 @@ Send Wikidata mailing list submissions to
         '''
         folderURI="mailbox://nobody@Local Folders/WF/Friends/Diverse"
         expectedSbdFolder='/Mail/Local Folders/WF.sbd/Friends.sbd/Diverse'
-        sbdFolder=Mail.toSbdFolder(folderURI)
+        expectedFolder="WF/Friends/Diverse"
+        sbdFolder,folder=Mail.toSbdFolder(folderURI)
         self.assertEqual(sbdFolder,expectedSbdFolder)
+        self.assertEqual(folder,expectedFolder)
         
 
 if __name__ == "__main__":
