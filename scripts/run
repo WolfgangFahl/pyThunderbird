@@ -1,0 +1,133 @@
+#!/bin/bash
+# WF 2021-10-16
+# run script for pyThunderbird server
+
+#ansi colors
+#http://www.csc.uvic.ca/~sae/seng265/fall04/tips/s265s047-tips/bash-using-colors.html
+blue='\033[0;34m'
+red='\033[0;31m'
+green='\033[0;32m' # '\e[1;32m' is too bright for white bg.
+endColor='\033[0m'
+
+#
+# a colored message
+#   params:
+#     1: l_color - the color of the message
+#     2: l_msg - the message to display
+#
+color_msg() {
+  local l_color="$1"
+  local l_msg="$2"
+  echo -e "${l_color}$l_msg${endColor}"
+}
+
+# error
+#
+#   show an error message and exit
+#
+#   params:
+#     1: l_msg - the message to display
+error() {
+  local l_msg="$1"
+  # use ansi red for error
+  color_msg $red "Error: $l_msg" 1>&2
+  exit 1
+}
+
+#
+# show the usage
+#
+usage() {
+  echo "usage: $0 [-s] [-h]"
+  echo "  -h: show this usage"
+  echo "  -s: start as server only"
+}
+export PYTHONPATH=""
+
+#
+# open the given url waiting for the given number of seconds
+#
+# param #1: the url to open
+# param #2: the number of loops to wait
+# param #3: the sleep time per loop
+openUrl() {
+  local l_url="$1"
+  local l_loops="$2"
+  local l_sleep="$3"
+  local l_count=1
+  local l_done=0
+  until [ $l_done -eq 1 ]
+  do
+    l_count=$((l_count+1))
+    if [ "$l_count" -ge "$l_loops" ]
+    then
+      echo "giving up to wait for $l_url"
+      l_done=1
+    fi
+    status=$(curl -Is $l_url | head -1)
+    echo "waiting $l_count/$l_loops for $l_url: $status"
+    case $status in
+      *200*OK*) open $l_url
+        l_done="1" ;;
+    esac
+    sleep $l_sleep
+  done
+}
+
+#
+# kill the given process by name if it is running
+#
+# param #1: l_name: the name to search for
+killifrunning() {
+  local l_name="$1"
+  pgrep -fl "$l_name"
+  if [ $? -eq 0 ]
+  then
+    color_msg $blue "killing running $l_name server"
+    sudo pkill -f "$l_name"
+  fi
+}
+
+#
+# start the Thunderbird mail server
+#
+startServer() {
+  local l_users="$1"
+  local l_logdir=/var/log/tbmail
+  local l_logfile=tbmail.log
+  color_msg $blue "starting server only"
+  if [ ! -d $l_logdir ]
+  then
+    sudo mkdir -p $l_logdir
+    sudo chmod 770 $l_logdir
+  fi
+  sudo chown $USER $l_logdir
+  sudo chgrp $(id -gn) $l_logdir
+  export PYTHONPATH="."
+  nohup python3 $pyapp --verbose -u $l_users > $l_logdir/$l_logfile 2>&1 &
+  color_msg $green "log is at $l_logdir/$l_logfile"
+}
+
+pyapp=thunderbird/webserver.py
+killifrunning $pyapp
+port=8482
+
+# commandline option
+while [  "$1" != ""  ]
+do
+  option=$1
+  shift
+  case $option in
+    -h|--help)
+      usage
+      exit 0;;
+    -s)
+      startServer "wf muf"
+      exit 0
+      ;;
+    *)
+      ;;
+  esac
+done
+color_msg $blue "starting in client mode"
+openUrl "http://localhost:$port" 60 0.5&
