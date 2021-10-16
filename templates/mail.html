@@ -2,7 +2,7 @@
 {% import 'macros.html' as macros %}
 {% block content %}
 {% macro mailPartRow(mail,loopIndex,part) -%}
-  <tr><th>{{loopIndex}}:</th><td>{{part.get_content_type()}}</td><td>{{part.get_content_charset()}}</td><td style='text-align:right'><a href='{{ url_for('downloadPart',user=mail.user,mailid=mail.mailid,partIndex=loopIndex) }}'>{{part.filename}}({{part.length}})</a></td><tr>
+  <tr><th>{{loopIndex}}:</th><td>{{part.get_content_type()}}</td><td>{{part.get_content_charset()}}</td><td style='text-align:right'><a href='{{ url_for('downloadPart',user=mail.user,mailid=mail.mailid,partIndex=loopIndex) }}'>{{part.filename}})</a></td><td>({{part.length}}</td><tr>
 {%- endmacro %}
 {% macro tableLine(key,value) -%}
   <tr><th>{{key}}:</th><td>{{value|safe}}</td><tr>
@@ -26,7 +26,7 @@
 {% endfor %}
 </table>
 <table id='messageParts' style='display:none'>
-<tr><th>#</th><th>type</th><th>charset</th><th>len</th></tr>
+<tr><th>#</th><th>type</th><th>charset</th><th>name</th><th>len</th></tr>
 {% for part in mail.msgParts %}
 {{ mailPartRow(mail,loop.index,part) }}
 {% endfor %}
