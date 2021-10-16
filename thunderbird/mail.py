@@ -179,7 +179,7 @@ where m.headerMessageID==(?)"""
         charset = part.get_content_charset()
         # FIXME derive filename from part
         defaultName="test.pdf"
-        filename = part.get_param('name') or defaultName
+        filename = make_header(decode_header(part.get_param('name'))) or defaultName
         f = open(f"{folder}/{filename}", 'wb')
         f.write(part.get_payload(decode=1))
         f.close()
