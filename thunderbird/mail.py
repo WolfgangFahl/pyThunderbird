@@ -5,6 +5,7 @@ Created on 2020-10-24
 '''
 from lodstorage.sql import SQLDB
 from pathlib import Path
+import sqlite3
 from collections import OrderedDict
 import mailbox
 import re
@@ -37,7 +38,11 @@ class Thunderbird(object):
         else:
             self.db=db
             self.profile=profile
-        self.sqlDB=SQLDB(self.db,check_same_thread=False,timeout=5)
+        try:
+            self.sqlDB=SQLDB(self.db,check_same_thread=False,timeout=5)
+        except sqlite3.OperationalError as soe:
+            print(f"could not open database {self.db}: {soe}")
+            raise soe
         pass
      
     @staticmethod
