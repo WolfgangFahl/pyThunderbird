@@ -93,7 +93,9 @@ class Mail(object):
         self.rawMsg=None
         self.headers={}
         self.fromUrl=None
+        self.fromMailTo=None
         self.toUrl=None
+        self.toMailTo=None
         query="""select m.*,f.* 
 from  messages m join
 folderLocations f on m.folderId=f.id
@@ -168,12 +170,46 @@ where m.headerMessageID==(?)"""
         self.headers=OrderedDict(sorted(self.headers.items()))
         if "From" in self.headers:
             fromAdr=self.headers["From"]
-            self.fromUrl=f"<a href='mailto:{fromAdr}'>{fromAdr}</a>"
+            self.fromMailTo=f"mailto:{fromAdr}"
+            self.fromUrl=f"<a href='{self.fromMailTo}'>{fromAdr}</a>"
         if "To" in self.headers:
             toAdr=self.headers["To"]
-            self.toUrl=f"<a href='mailto:{toAdr}'>{toAdr}</a>"
+            self.toMailTo=f"mailto:{toAdr}"
+            self.toUrl=f"<a href='{self.toMailTo}'>{toAdr}</a>"
         pass
     
+    def getHeader(self,headerName:str):
+        '''
+        get the header with the given name
+        
+        Args:    
+            headerName(str): the name of the header
+            
+        Returns:
+            str: the header value
+        '''
+        if headerName in self.headers:
+            headerValue=self.headers[headerName]
+        else:
+            headerValue="?"
+        return headerValue
+    
+    def asWikiMarkup(self)->str:
+        '''
+        convert me to wiki markup in Wikison notation
+        
+        Returns:
+            str: a http://wiki.bitplan.com/index.php/WikiSon notation
+        '''
+        wikison=f"""{{{{mail
+|user={self.user}
+|id={self.mailid}
+|from={self.getHeader('From')}
+|to={self.getHeader('To')}
+|subject={self.getHeader('Subject')}
+}}}}"""
+        return wikison
+        
     
     def partAsFile(self,folder,partIndex):
         '''

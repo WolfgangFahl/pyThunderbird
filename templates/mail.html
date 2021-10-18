@@ -19,7 +19,10 @@
 {{ headerLine("Date") }}
 {{ headerLine("Subject") }}
 </table>
-{{ macros.toggleText('relevantHeaderTable','info') }}{{ macros.toggleText('txtMsg','text') }}{{ macros.toggleText('htmlMsg','html') }}{{ macros.toggleText('headerTable','headers') }}{{ macros.toggleText('messageParts','parts') }} 
+<pre id='wikison' style='display:none'>
+{{ mail.asWikiMarkup() }}
+</pre>
+{{ macros.toggleText('relevantHeaderTable','info') }}{{ macros.toggleText('wikison','wiki') }}{{ macros.toggleText('txtMsg','text') }}{{ macros.toggleText('htmlMsg','html') }}{{ macros.toggleText('headerTable','headers') }}{{ macros.toggleText('messageParts','parts') }} 
 <table id='headerTable' style='display:none'>
 {% for key, value in mail.headers.items() %}
 {{ tableLine(key,value) }}

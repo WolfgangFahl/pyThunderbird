@@ -118,6 +118,24 @@ Send Wikidata mailing list submissions to
         self.assertEqual(mail.fromUrl,"<a href='mailto:wikidata-request@lists.wikimedia.org'>wikidata-request@lists.wikimedia.org</a>")
         self.assertEqual(mail.toUrl,"<a href='mailto:wikidata@lists.wikimedia.org'>wikidata@lists.wikimedia.org</a>")
         
+    def testIssue10(self):
+        '''
+        https://github.com/WolfgangFahl/pyThunderbird/issues/10
+        display wikison notation for cut&paste into Semantic MediaWiki
+        '''
+        mail=self.getMockedMail()
+        wikison=mail.asWikiMarkup()
+        expected="""{{mail
+|user=wf
+|id=mailman.45.1601640003.19840.wikidata@lists.wikimedia.org
+|from=wikidata-request@lists.wikimedia.org
+|to=wikidata@lists.wikimedia.org
+|subject=Wikidata Digest, Vol 107, Issue 2
+}}"""
+        if self.debug:
+            print (wikison)
+        self.assertEqual(expected,wikison)
+        pass
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testMail']
