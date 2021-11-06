@@ -9,7 +9,7 @@ from thunderbird.mail import Mail, Thunderbird
 import mailbox
 import getpass
 import os
-
+import socket
 
 class TestMail(unittest.TestCase):
     '''
@@ -136,6 +136,35 @@ Send Wikidata mailing list submissions to
             print (wikison)
         self.assertEqual(expected,wikison)
         pass
+    
+    def isDeveloper(self)->bool:
+        '''
+        check whether we test on the developer machine
+        '''
+        user=getpass.getuser()
+        host=socket.gethostname()
+        
+        return user=="wf" and host=="fix.bitplan.com"
+    
+    def testHeaderIssue(self):
+        '''
+         File "/hd/sengo/home/wf/source/python/pyThunderbird/thunderbird/mail.py", line 158, in __init__
+    part.filename=str(make_header(decode_header(partname)))
+  File "/usr/lib/python3.8/email/header.py", line 80, in decode_header
+    if not ecre.search(header):
+TypeError: expected string or bytes-like object
+        '''
+        if self.isDeveloper():
+            user="wf"
+            tb=Thunderbird.get(user)
+            debug=True
+            mailid="<61418716.20495.1635242774805@sb2-itd-337.admin.sb2>"
+            mail=Mail(user,mailid=mailid,tb=tb,debug=debug)
+            self.assertTrue(mail.found)
+            if debug:
+                print(mail)
+            
+        
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testMail']
