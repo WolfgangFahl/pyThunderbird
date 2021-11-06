@@ -105,7 +105,10 @@ where m.headerMessageID==(?)"""
         #folderId=maillookup['folderId']
         if self.debug:
             print (maillookup)
-        if len(maillookup)>=1:
+        if len(maillookup)==0:
+            self.found=False
+        else:
+            self.found=True
             mailInfo=maillookup[0]
             folderURI=mailInfo['folderURI']
             messageKey=int(mailInfo['messageKey'])
@@ -177,6 +180,10 @@ where m.headerMessageID==(?)"""
             self.toMailTo=f"mailto:{toAdr}"
             self.toUrl=f"<a href='{self.toMailTo}'>{toAdr}</a>"
         pass
+    
+    def __str__(self):
+        text=f"{self.user}/{self.mailid}"
+        return text
     
     def getHeader(self,headerName:str):
         '''
