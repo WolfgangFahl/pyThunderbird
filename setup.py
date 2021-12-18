@@ -17,7 +17,7 @@ except:
 
 setup(
     name='pyThunderbird',
-    version='0.0.12',
+    version='0.0.13',
 
     packages=['thunderbird', ],
     package_data={
