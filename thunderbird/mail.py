@@ -9,6 +9,7 @@ import sqlite3
 from collections import OrderedDict
 import mailbox
 from email.header import decode_header, make_header
+from mimetypes import guess_extension
 from ftfy import fix_text
 import re
 import os
@@ -158,7 +159,7 @@ where m.headerMessageID==(?)"""
                         if charset is None:
                             charset='utf-8'
                         partname=part.get_param('name')
-                        part.filename=self.fixedPartName(partname,f"part{len(self.msgParts)}")
+                        part.filename=self.fixedPartName(partname,contentType,len(self.msgParts))
                         if contentType == 'text/plain' or contentType== 'text/html':
                             part_str = part.get_payload(decode=1)
                             rawPart=part_str.decode(charset)
@@ -179,7 +180,7 @@ where m.headerMessageID==(?)"""
             self.toUrl=f"<a href='{self.toMailTo}'>{toAdr}</a>"
         pass
     
-    def fixedPartName(self,partname:str,defaultName:str):
+    def fixedPartName(self,partname:str,contentType:str,partIndex:int):
         '''
         get a fixed version of the partname
         
@@ -188,13 +189,17 @@ where m.headerMessageID==(?)"""
             partname(str): the name of the part
             defaultName(str): the default name to use
         '''
+        
         # avoid TypeError: expected string or bytes-like object
         if partname:
             if type(partname) is tuple:
-                encoding,_unknown,partname=partname
+                _encoding,_unknown,partname=partname
             filename=str(make_header(decode_header(partname)))
         else:
-            filename=f"part{len(self.msgParts)}"
+            ext=guess_extension(contentType.partition(';')[0].strip())
+            if ext is None:
+                ext=".txt"
+            filename=f"part{partIndex}{ext}"
         filename=fix_text(filename)
         return filename
     
