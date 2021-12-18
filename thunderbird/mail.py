@@ -157,8 +157,9 @@ where m.headerMessageID==(?)"""
                         if charset is None:
                             charset='utf-8'
                         partname=part.get_param('name')
+                        # avoid TypeError: expected string or bytes-like object
                         if partname:
-                            part.filename=str(make_header(decode_header(partname)))
+                            part.filename=str(make_header(decode_header(str(partname))))
                         else:
                             part.filename=f"part{len(self.msgParts)}"
                         if contentType == 'text/plain' or contentType== 'text/html':
