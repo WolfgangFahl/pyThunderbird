@@ -19,8 +19,8 @@ class TestMail(unittest.TestCase):
     def setUp(self):
         self.debug=False
         user=getpass.getuser()
-        #if user!="wf":
-        self.mockMail()
+        if user!="wf":
+            self.mockMail()
         pass
 
     def tearDown(self):
@@ -157,14 +157,18 @@ TypeError: expected string or bytes-like object
         if self.isDeveloper():
             user="wf"
             tb=Thunderbird.get(user)
-            debug=True
+            debug=False
             mailid="<61418716.20495.1635242774805@sb2-itd-337.admin.sb2>"
             mail=Mail(user,mailid=mailid,tb=tb,debug=debug)
             self.assertTrue(mail.found)
             if debug:
                 print(mail)
+            msgParts=mail.msgParts
+            if debug:
+                for i,msgPart in enumerate(msgParts):
+                    print (f"{i}:{msgPart.filename}")
             
-        
+            self.assertTrue(msgParts[3].filename.startswith("Rü"))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testMail']

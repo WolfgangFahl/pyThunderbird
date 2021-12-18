@@ -8,3 +8,7 @@ PyYAML
 Flask
 # https://github.com/WolfgangFahl/pyFlaskBootstrap4
 pyFlaskBootstrap4
+# ftfy
+# https://github.com/rspeer/python-ftfy
+# https://stackoverflow.com/a/39904411/1497139
+ftfy

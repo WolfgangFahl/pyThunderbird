@@ -9,6 +9,7 @@ import sqlite3
 from collections import OrderedDict
 import mailbox
 from email.header import decode_header, make_header
+from ftfy import fix_text
 import re
 import os
 import sys
@@ -157,11 +158,7 @@ where m.headerMessageID==(?)"""
                         if charset is None:
                             charset='utf-8'
                         partname=part.get_param('name')
-                        # avoid TypeError: expected string or bytes-like object
-                        if partname:
-                            part.filename=str(make_header(decode_header(str(partname))))
-                        else:
-                            part.filename=f"part{len(self.msgParts)}"
+                        part.filename=self.fixedPartName(partname,f"part{len(self.msgParts)}")
                         if contentType == 'text/plain' or contentType== 'text/html':
                             part_str = part.get_payload(decode=1)
                             rawPart=part_str.decode(charset)
@@ -181,6 +178,25 @@ where m.headerMessageID==(?)"""
             self.toMailTo=f"mailto:{toAdr}"
             self.toUrl=f"<a href='{self.toMailTo}'>{toAdr}</a>"
         pass
+    
+    def fixedPartName(self,partname:str,defaultName:str):
+        '''
+        get a fixed version of the partname
+        
+        
+        Args:
+            partname(str): the name of the part
+            defaultName(str): the default name to use
+        '''
+        # avoid TypeError: expected string or bytes-like object
+        if partname:
+            if type(partname) is tuple:
+                encoding,_unknown,partname=partname
+            filename=str(make_header(decode_header(partname)))
+        else:
+            filename=f"part{len(self.msgParts)}"
+        filename=fix_text(filename)
+        return filename
     
     def __str__(self):
         text=f"{self.user}/{self.mailid}"
