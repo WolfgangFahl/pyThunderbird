@@ -6,7 +6,7 @@ Created on 2021-09-23
 
 import os.path
 from datetime import datetime
-from flask import render_template, url_for, send_from_directory
+from flask import abort,render_template, url_for, send_from_directory
 from fb4.widgets import MenuItem
 from fb4.app import AppWrap
 from thunderbird.mail import Mail, Thunderbird
@@ -79,6 +79,8 @@ class WebServer(AppWrap):
         '''
         if user in self.mailboxes:
             tb=self.mailboxes[user]
+        else:
+            abort(400,f"invalid user {user}")
         mail=Mail(user=user,mailid=mailid,tb=tb,debug=self.verbose)
         return render_template('mail.html',mail=mail,menuList=self.getMenuList())
 
