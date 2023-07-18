@@ -38,6 +38,8 @@ dependencies= [
 	"pylodstorage>=0.4.11",
 	"PyYAML>=6.0",
 	"Flask>=2.3.2",
+	#https://pypi.org/project/Flask-WTF/
+	"Flask-WTF>=1.1.1",
 	"pyFlaskBootstrap4>=0.6.1",
 	"ftfy>=6.1.1"
 ]
