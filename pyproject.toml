@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyThunderbird"
+authors = [
+  { name = "Wolfgang Fahl", email = "wf@bitplan.com" }
+]
+maintainers = [
+  { name = "Wolfgang Fahl", email = "wf@bitplan.com" }
+]
+
+description = "python Thunderbird mail access"
+version = "0.0.16"
+
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.8"
+
+classifiers=[
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License"
+]
+
+dependencies= [
+	"pylodstorage>=0.4.11",
+	"PyYAML>=6.0",
+	"Flask>=2.3.2",
+	"pyFlaskBootstrap4>=0.6.1",
+	"ftfy>=6.1.1"
+]
+[project.urls]
+Home = "https://github.com/WolfgangFahl/pyThunderbird"
+Documentation = "http://wiki.bitplan.com/index.php/PyThunderbird"
+Source = "https://github.com/WolfgangFahl/pyThunderbird/blob/master/thunderbird/mail.py"
+IssueTracker = "https://github.com/WolfgangFahl/pyThunderbird/issues"
+
+
+
+[project.optional-dependencies]
+test = [
+  "green",
+]
+
+
+
+[tool.hatch.build.targets.wheel]
+packages = [
+  "thunderbird",
+]
+
+[project.scripts]
+tbmail = "thunderbird.mail:main"
+tbmailwebserver = "thunderbird.webserver:main"
