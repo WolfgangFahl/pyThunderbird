@@ -238,6 +238,48 @@ where m.headerMessageID==(?)"""
 |subject={self.getHeader('Subject')}
 }}}}"""
         return wikison
+    
+    def table_line(self, key, value):
+        """Generate a table row with a key and value."""
+        return f"<tr><th>{key}:</th><td>{value}</td><tr>"
+
+    def mail_part_row(self, loop_index, part):
+        """Generate a table row for a mail part."""
+        return f"<tr><th>{loop_index}:</th><td>{part.get_content_type()}</td><td>{part.get_content_charset()}</td><td><a href='...'>{part.filename}</a></td><td style='text-align:right'>{part.length}</td><tr>"
+
+    def as_html(self):
+        """Generate the HTML representation of the mail."""
+        html_parts = []
+
+        # Add title if exists
+        if self.mailid:
+            html_parts.append(f"<h2>{self.mailid}</h2>")
+
+        # Start building the HTML string
+        html_parts.append("<table id='relevantHeaderTable'>")
+        html_parts.append(self.table_line("User", self.user))
+        html_parts.append(self.table_line("Folder", self.folder))
+        html_parts.append(self.table_line("From", self.fromUrl))
+        html_parts.append(self.table_line("To", self.toUrl))
+        html_parts.append(self.table_line("Date", self.getHeader("Date")))
+        html_parts.append(self.table_line("Subject", self.getHeader("Subject")))
+
+        # Loop for headers
+        for key, value in self.headers.items():
+            html_parts.append(self.table_line(key, value))
+
+        # Loop for message parts
+        html_parts.append("<table id='messageParts' style='display:none'><tr><th>#</th><th>type</th><th>charset</th><th>name</th><th>len</th></tr>")
+        for index, part in enumerate(self.msgParts):
+            html_parts.append(self.mail_part_row(index, part))
+
+        # Closing tables
+        html_parts.append("</table>")
+        
+        # Add raw message parts if necessary
+        html_parts.append(f"<hr><p id='txtMsg'>{self.txtMsg}</p><hr><div id='htmlMsg'>{self.html}</div>")
+
+        return ''.join(html_parts)
         
     
     def partAsFile(self,folder,partIndex):
@@ -289,72 +331,6 @@ where m.headerMessageID==(?)"""
         for h,v in headers.items():
             m[h] = v
         m.set_payload(content)
-        return m       
-                
-    
-__version__ = "0.0.8"
-__date__ = '2021-09-23'
-__updated__ = '2021-09-23'    
-
-DEBUG = 1
-
-    
-def main(argv=None): # IGNORE:C0111
-    '''main program.'''
-
-    if argv is None:
-        argv=sys.argv[1:]
-        
-    program_name = os.path.basename(__file__)
-    program_version = "v%s" % __version__
-    program_build_date = str(__updated__)
-    program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
-    program_shortdesc = "script to retrieve thunderbird mail via user and mailid"
-    user_name="Wolfgang Fahl"
-    program_license = '''%s
-
-  Created by %s on %s.
-  Copyright 2020-2021 Wolfgang Fahl. All rights reserved.
-
-  Licensed under the Apache License 2.0
-  http://www.apache.org/licenses/LICENSE-2.0
-
-  Distributed on an "AS IS" basis without warranties
-  or conditions of any kind, either express or implied.
-
-USAGE
-''' % (program_shortdesc,user_name, str(__date__))
-
-    try:
-        # Setup argument parser
-        parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
-        parser.add_argument("-d", "--debug", dest="debug", action="count", help="set debug level [default: %(default)s]")
-        parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument('-u','--user',type=str,help="id of the user")       
-        parser.add_argument('-i','--id',type=str,help="id of the mail to retrieve")
-  
-        # Process arguments
-        args = parser.parse_args(argv)
-        if args.user is None or args.id is None:
-            parser.print_help()
-        else:
-            mail=Mail(user=args.user,mailid=args.id,debug=args.debug)
-            print (mail.msg)
-
-    except KeyboardInterrupt:
-        ### handle keyboard interrupt ###
-        return 1
-    except Exception as e:
-        if DEBUG:
-            raise(e)
-        indent = len(program_name) * " "
-        sys.stderr.write(program_name + ": " + repr(e) + "\n")
-        sys.stderr.write(indent + "  for help use --help")
-        return 2     
-    
-if __name__ == "__main__":
-    if DEBUG:
-        sys.argv.append("-d")
-    sys.exit(main())
+        return m
         
         
