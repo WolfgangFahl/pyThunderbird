@@ -7,6 +7,8 @@ from lodstorage.sql import SQLDB
 import os
 import getpass
 import socket
+import yaml
+from pathlib import Path
 from ngwidgets.basetest import Basetest
 from thunderbird.mail import Mail,Thunderbird
 
@@ -32,7 +34,29 @@ class BaseThunderbirdTest(Basetest):
         self.temp_dir =  temp_dir  
         # make sure the temp_dir exists
         os.makedirs(os.path.dirname(temp_dir), exist_ok=True)
+        self.db_path = os.path.join(self.temp_dir, f"gloda_{self.user}.sqlite")
+        self.profile_path = os.path.join(self.temp_dir, f"tb_{self.user}.profile")
+
+        if self.inPublicCI():
+            self.create_mock_thunderbird_config()
         self.mock_mail()
+        
+    def create_mock_thunderbird_config(self):
+        """
+        Create a mock .thunderbird.yaml file in the home directory for public CI environment.
+        """
+        # Mock configuration
+        thunderbird_config = {
+            self.user: {
+                "db": self.db_path,
+                "profile": self.profile_path
+            }
+        }
+
+        # Write the configuration to a .thunderbird.yaml file in the home directory
+        config_path = Path.home() / ".thunderbird.yaml"
+        with open(config_path, 'w') as config_file:
+            yaml.dump(thunderbird_config, config_file)
 
     def is_developer(self) -> bool:
         """
@@ -52,9 +76,7 @@ class BaseThunderbirdTest(Basetest):
         """
         if user is None:
             user=self.mock_user
-        db = os.path.join(self.temp_dir, f"gloda_{user}.sqlite")
-        profile = os.path.join(self.temp_dir, f"tb_{user}.profile")       
-        mboxFile = os.path.join(profile, "Mail", "Local Folders", f"WF.sbd", "2020-10")
+        mboxFile = os.path.join(self.profile_path, "Mail", "Local Folders", f"WF.sbd", "2020-10")
         # make sure the parent directories of the mailbox exist
         os.makedirs(os.path.dirname(mboxFile), exist_ok=True)
         messagesLod = [
@@ -71,7 +93,7 @@ class BaseThunderbirdTest(Basetest):
         foldersLod = [
             {"id": 1003, "folderURI": "mailbox://nobody@Local%20Folders/WF/2020-10"}
         ]
-        sqlDB = SQLDB(db)
+        sqlDB = SQLDB(self.db_path)
         mEntityInfo = sqlDB.createTable(messagesLod, "messages", "id", withDrop=True)
         sqlDB.store(messagesLod, mEntityInfo)
         fEntityInfo = sqlDB.createTable(
