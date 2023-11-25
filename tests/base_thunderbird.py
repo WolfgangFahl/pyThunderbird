@@ -8,7 +8,7 @@ import os
 import getpass
 import socket
 from ngwidgets.basetest import Basetest
-from thunderbird.mail import Thunderbird
+from thunderbird.mail import Mail,Thunderbird
 
 class BaseThunderbirdTest(Basetest):
     """
@@ -99,3 +99,13 @@ Send Wikidata mailing list submissions to
         tb=Thunderbird(user=user, db=db, profile=profile)
         Thunderbird.profiles[user] = tb
 
+    def getMockedMail(self):
+        """
+        get a mocked mail
+        """
+        mail = Mail(
+            f"{self.user}",
+            "mailman.45.1601640003.19840.wikidata@lists.wikimedia.org",
+            debug=self.debug,
+        )
+        return mail

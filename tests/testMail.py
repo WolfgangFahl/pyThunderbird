@@ -3,12 +3,9 @@ Created on 24.10.2020
 
 @author: wf
 """
-from lodstorage.sql import SQLDB
 from thunderbird.mail import Mail, Thunderbird
 import mailbox
-import getpass
 import os
-import socket
 from tests.base_thunderbird import BaseThunderbirdTest
 
 class TestMail(BaseThunderbirdTest):
@@ -17,7 +14,10 @@ class TestMail(BaseThunderbirdTest):
     """
 
     def testCreateMailbox(self):
-        mboxFile = "/tmp/testMailbox"
+        """
+        test creating a mailbox file
+        """
+        mboxFile = os.path.join(self.temp_dir,"testMailbox")
         mbox = mailbox.mbox(mboxFile)
         message = Mail.create_message(
             "john@doe.com", "mary@doe.com", "Hi Mary!", {"Subject": "Let's talk"}
@@ -25,20 +25,12 @@ class TestMail(BaseThunderbirdTest):
         mbox.add(message)
         mbox.close()
 
-    def getMockedMail(self):
-        mail = Mail(
-            "wf",
-            "mailman.45.1601640003.19840.wikidata@lists.wikimedia.org",
-            debug=self.debug,
-        )
-        return mail
-
     def testIssue1(self):
         """
         test Mail access
         """
         mail = self.getMockedMail()
-        self.assertEqual(mail.tb.user, "wf")
+        self.assertEqual(mail.tb.user, self.user)
         self.assertTrue(mail.msg is not None)
         subject = mail.msg.get("subject")
         if self.debug:
@@ -100,15 +92,6 @@ class TestMail(BaseThunderbirdTest):
             print(wikison)
         self.assertEqual(expected, wikison)
         pass
-
-    def isDeveloper(self) -> bool:
-        """
-        check whether we test on the developer machine
-        """
-        user = getpass.getuser()
-        host = socket.gethostname()
-
-        return user == "wf" and host == "fix.bitplan.com"
 
     def testHeaderIssue(self):
         """

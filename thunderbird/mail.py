@@ -13,11 +13,9 @@ from mimetypes import guess_extension
 from ftfy import fix_text
 import re
 import os
-import sys
 import urllib
 import yaml
 from thunderbird.profiler import Profiler
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
 class Thunderbird(object):
     '''
@@ -64,7 +62,18 @@ class Thunderbird(object):
         if not user in Thunderbird.profiles:
             tb=Thunderbird(user)
             Thunderbird.profiles[user]=tb
-        return Thunderbird.profiles[user]    
+        return Thunderbird.profiles[user]  
+    
+    def query(self,sql_query:str,params):
+        """
+        query this mailbox gloda
+        
+        Args:
+            sql_query(str): the sql query to execute
+            params: the parameters for the query
+        """  
+        records=self.sqlDB.query(sql_query,params)
+        return records
 
 class Mail(object):
     '''
@@ -103,7 +112,7 @@ from  messages m join
 folderLocations f on m.folderId=f.id
 where m.headerMessageID==(?)"""
         params=(mailid,)
-        maillookup=self.tb.sqlDB.query(query,params)
+        maillookup=self.tb.query(query,params)
         #folderId=maillookup['folderId']
         if self.debug:
             print (maillookup)
@@ -121,7 +130,7 @@ where m.headerMessageID==(?)"""
                 if self.debug:
                     print (folderPath)
                 self.mbox=mailbox.mbox(folderPath)
-                getTime=Profiler(f"mbox.get {messageKey-1}",profile=self.debug)
+                getTime=Profiler(f"mbox.get {messageKey-1} from {folderPath}",profile=self.debug)
                 self.msg=self.mbox.get(messageKey-1)
                 getTime.time()
                 # if lookup fails we might loop thru
