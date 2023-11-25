@@ -15,7 +15,7 @@ class MailArchive:
         db_update_time (str): The last update time of the mailbox database.
     """
     user: str
-    mailbox_db_path: str
+    gloda_db_path: str
     db_update_time: str = ''
 
     def __post_init__(self):
@@ -31,7 +31,7 @@ class MailArchive:
         Returns:
             str: The formatted last update time.
         """
-        timestamp = os.path.getmtime(self.mailbox_db_path)
+        timestamp = os.path.getmtime(self.gloda_db_path)
         return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
     def to_dict(self) -> Dict[str, str]:
@@ -73,12 +73,12 @@ class MailArchives:
         for user in self.user_list:
             # Assuming Thunderbird.get(user) returns a Thunderbird instance with a valid mailbox DB path attribute
             tb_instance = Thunderbird.get(user)
-            if hasattr(tb_instance, 'db_path'):  # Replace 'db_path' with the actual attribute name
-                mailbox_path = tb_instance.db_path
+            if hasattr(tb_instance, 'db'):  # Replace 'db_path' with the actual attribute name
+                gloda_path = tb_instance.db
             else:
-                raise ValueError(f"Mailbox path for user '{user}' not found")
+                raise ValueError(f"Thunderbird Mailbox gloda path for user '{user}' not found")
 
-            archives[user] = MailArchive(user, mailbox_path)
+            archives[user] = MailArchive(user, gloda_path)
         return archives
 
     def as_view_lod(self) -> List[Dict[str, str]]:
