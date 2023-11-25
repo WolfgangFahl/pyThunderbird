@@ -5,9 +5,11 @@ Created on 2023-11-23
 """
 from ngwidgets.input_webserver import InputWebserver
 from ngwidgets.webserver import WebserverConfig
+from ngwidgets.progress import Progressbar,NiceguiProgressbar
 from thunderbird.version import Version
 from nicegui import ui, Client, app
 from thunderbird.mail import Mail, Thunderbird
+from ngwidgets.background import BackgroundTaskHandler
 
 class ThunderbirdWebserver(InputWebserver):
     """
@@ -28,7 +30,9 @@ class ThunderbirdWebserver(InputWebserver):
     def __init__(self):
         """Constructs all the necessary attributes for the WebServer object."""
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
-
+        self.bth=BackgroundTaskHandler()
+        app.on_shutdown(self.bth.cleanup())
+        
         @ui.page("/mail/{user}/{mailid}")
         async def showMail(user: str, mailid: str):
             return await self.showMail(user, mailid)
@@ -46,12 +50,22 @@ class ThunderbirdWebserver(InputWebserver):
         """
         show the given mail of the given user
         """
+        
+        def get_mail():
+            """
+            get the mail
+            """
+            tb = self.mailboxes[user]
+            mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
+            html_markup=mail.as_html()
+            self.mail_view.content = html_markup
+            pass
 
-        def show():
+        async def show():
+            self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
             if user in self.mailboxes:
-                tb = self.mailboxes[user]
-                mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
-                self.mail_view = ui.html(mail.as_html())
+                self.mail_view= ui.html(f"Loading {mailid} for user {user}")
+                self.future, result_coro = self.bth.execute_in_background(get_mail)
             else:
                 self.mail_view= ui.html(f"unknown user {user}")    
 
