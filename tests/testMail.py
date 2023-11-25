@@ -81,13 +81,13 @@ class TestMail(BaseThunderbirdTest):
         """
         mail = self.getMockedMail()
         wikison = mail.asWikiMarkup()
-        expected = """{{mail
-|user=wf
+        expected =f"""{{{{mail
+|user={self.mock_user}
 |id=mailman.45.1601640003.19840.wikidata@lists.wikimedia.org
 |from=wikidata-request@lists.wikimedia.org
 |to=wikidata@lists.wikimedia.org
 |subject=Wikidata Digest, Vol 107, Issue 2
-}}"""
+}}}}"""
         if self.debug:
             print(wikison)
         self.assertEqual(expected, wikison)
