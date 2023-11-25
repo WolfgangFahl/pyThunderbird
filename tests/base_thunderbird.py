@@ -26,9 +26,12 @@ class BaseThunderbirdTest(Basetest):
         self.debug = False
         self.user = getpass.getuser()
         self.host = socket.gethostname()
+        # handle temporary directory
         if temp_dir is None:
-            temp_dir="/tmp"
+            temp_dir="/tmp/.thunderbird"
         self.temp_dir =  temp_dir  
+        # make sure the temp_dir exists
+        os.makedirs(os.path.dirname(temp_dir), exist_ok=True)
         if not self.is_developer():
             self.mock_mail(self.user)
 
@@ -51,6 +54,7 @@ class BaseThunderbirdTest(Basetest):
         db = os.path.join(self.temp_dir, f"gloda_{user}.sqlite")
         profile = os.path.join(self.temp_dir, f"tb_{user}.profile")       
         mboxFile = os.path.join(profile, "Mail", "Local Folders", f"{user}.sbd", "2020-10")
+        # make sure the parent directories of the mailbox exist
         os.makedirs(os.path.dirname(mboxFile), exist_ok=True)
         messagesLod = [
             {
@@ -92,5 +96,6 @@ Send Wikidata mailing list submissions to
         file = open(mboxFile, "w")
         file.write(mboxContent)
         file.close()
-        Thunderbird.profiles[user] = Thunderbird(user=user, db=db, profile=profile)
+        tb=Thunderbird(user=user, db=db, profile=profile)
+        Thunderbird.profiles[user] = tb
 

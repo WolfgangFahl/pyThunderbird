@@ -18,7 +18,7 @@ class TestArchive(BaseThunderbirdTest):
         Set up each test, ensuring the mock mail environment is correctly initialized.
         """
         # Calling the setup of the base class with required parameters
-        super().setUp(debug=False, profile=True, temp_dir="/tmp")
+        super().setUp(debug=False, profile=True)
         self.mock_mail('wf')  # Ensure the mock mail environment for user 'wf' is set up
 
     def test_mail_archive_creation_and_update_time(self):
@@ -26,15 +26,15 @@ class TestArchive(BaseThunderbirdTest):
         Test the creation of a MailArchive instance and its database update time retrieval.
         """
         user = 'wf'
-        mailbox_db_path = os.path.join(self.temp_dir, f"tb_{user}.profile", "Mail", "Local Folders", f"{user}.sbd", "2020-10")
+        gloda_db_path = os.path.join(self.temp_dir, f"tb_{user}.profile", "Mail", "Local Folders", f"{user}.sbd", "2020-10")
 
         # Ensure the file exists
-        if not os.path.exists(mailbox_db_path):
-            self.fail(f"Expected mock mailbox file does not exist: {mailbox_db_path}")
+        if not os.path.exists(gloda_db_path):
+            self.fail(f"Expected mock mailbox gloda db file does not exist: {gloda_db_path}")
 
-        archive = MailArchive(user, mailbox_db_path)
+        archive = MailArchive(user, gloda_db_path)
         self.assertEqual(archive.user, user)
-        self.assertEqual(archive.mailbox_db_path, mailbox_db_path)
+        self.assertEqual(archive.gloda_db_path, gloda_db_path)
         self.assertRegex(archive.db_update_time, r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
         
     def test_mail_archives_creation_and_view_lod(self):
