@@ -119,7 +119,7 @@ Send Wikidata mailing list submissions to
         file = open(mboxFile, "w")
         file.write(mboxContent)
         file.close()
-        tb=Thunderbird(user=user, db=db, profile=profile)
+        tb=Thunderbird(user=user, db=self.db_path, profile=self.profile_path)
         Thunderbird.profiles[user] = tb
 
     def getMockedMail(self):
