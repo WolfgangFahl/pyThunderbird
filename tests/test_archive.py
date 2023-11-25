@@ -25,7 +25,7 @@ class TestArchive(BaseThunderbirdTest):
         """
         Test the creation of a MailArchive instance and its database update time retrieval.
         """
-        user = 'wf'
+        user = self.mock_user
         gloda_db_path = os.path.join(self.temp_dir, f"tb_{user}.profile", "Mail", "Local Folders", f"{user}.sbd", "2020-10")
 
         # Ensure the file exists
