@@ -12,6 +12,7 @@ from email.header import decode_header, make_header
 from mimetypes import guess_extension
 from ftfy import fix_text
 import re
+import sys
 import os
 import urllib
 import yaml
@@ -96,87 +97,92 @@ class Mail(object):
             self.tb=Thunderbird.get(user)
         else:
             self.tb=tb
-        if self.debug:
-            print(f"Searching for mail with id {mailid} for user {user}")
         mailid=re.sub(r"\<(.*)\>",r"\1",mailid)
         self.mailid=mailid
         self.keySearch=keySearch
         self.rawMsg=None
+        self.msg=None
         self.headers={}
         self.fromUrl=None
         self.fromMailTo=None
         self.toUrl=None
         self.toMailTo=None
-        query="""select m.*,f.* 
-from  messages m join
-folderLocations f on m.folderId=f.id
-where m.headerMessageID==(?)"""
-        params=(mailid,)
-        maillookup=self.tb.query(query,params)
-        #folderId=maillookup['folderId']
-        if self.debug:
-            print (maillookup)
-        if len(maillookup)==0:
-            self.found=False
-        else:
-            self.found=True
-            mailInfo=maillookup[0]
+        mailInfo=self.search()
+        if mailInfo is not None:
             folderURI=mailInfo['folderURI']
             messageKey=int(mailInfo['messageKey'])
             folderURI=urllib.parse.unquote(folderURI)
             sbdFolder,self.folder=Mail.toSbdFolder(folderURI)
             folderPath=self.tb.profile+sbdFolder
-            if os.path.isfile(folderPath):
-                if self.debug:
-                    print (folderPath)
-                self.mbox=mailbox.mbox(folderPath)
-                getTime=Profiler(f"mbox.get {messageKey-1} from {folderPath}",profile=self.debug)
-                self.msg=self.mbox.get(messageKey-1)
-                getTime.time()
-                # if lookup fails we might loop thru
-                # all messages if this option is active ...
-                if self.msg is None and self.keySearch:
-                    searchId="<%s>" % mailid
-                    searchTime=Profiler(f"keySearch {searchId} after mbox.get failed",profile=self.debug)
-                    for key in self.mbox.keys():
-                        keyMsg=self.mbox.get(key)
-                        msgId=keyMsg.get("Message-Id")
-                        if msgId==searchId:
-                            self.msg=keyMsg
-                            break
-                        pass
-                    searchTime.time()
-                self.mbox.close()
-                if self.msg is not None:
-                    for key in self.msg.keys():
-                        #https://stackoverflow.com/a/21715870/1497139
-                        self.headers[key]=str(make_header(decode_header(self.msg.get(key))))
-                    self.txtMsg=""
-                    self.html=""
-                    # https://stackoverflow.com/a/43833186/1497139
-                    self.msgParts=[]
-                    # decode parts
-                    # https://stackoverflow.com/questions/59554237/how-to-handle-all-charset-and-content-type-when-reading-email-from-imap-lib-in-p
-                    # https://gist.github.com/miohtama/5389146
-                    for part in self.msg.walk():
-                        self.msgParts.append(part)
-                        part.length=len(part._payload)
-                        # each part is a either non-multipart, or another multipart message
-                        # that contains further parts... Message is organized like a tree
-                        contentType=part.get_content_type()
-                        charset = part.get_content_charset()
-                        if charset is None:
-                            charset='utf-8'
-                        partname=part.get_param('name')
-                        part.filename=self.fixedPartName(partname,contentType,len(self.msgParts))
-                        if contentType == 'text/plain' or contentType== 'text/html':
-                            part_str = part.get_payload(decode=1)
-                            rawPart=part_str.decode(charset)
-                            if contentType == 'text/plain':
-                                self.txtMsg+=rawPart
-                            elif contentType == 'text/html':
-                                self.html+=rawPart
-                        pass
+            self.get_message_by_key(folderPath,messageKey)
+            # if lookup fails we might loop thru
+            # all messages if this option is active ...
+            if self.msg is None and self.keySearch:
+                self.search_message_by_key()  
+            if self.msg is not None:
+                self.extract_message()
+            self.mbox.close()
+            
+    def get_message_by_key(self,folderPath,messageKey):          
+        """
+        get the message by its message key
+        """
+        if not os.path.isfile(folderPath):
+            print(f"{folderPath} does not exist",file=sys.stderr)
+        else:
+            self.mbox=mailbox.mbox(folderPath)
+            getTime=Profiler(f"mbox.get {messageKey-1} from {folderPath}",profile=self.debug)
+            self.msg=self.mbox.get(messageKey-1)
+            getTime.time()
+            
+    def search_message_by_key(self):
+        """
+        search messages by key
+        """
+        searchId=f"<{self.mailid}>"  
+        searchTime=Profiler(f"keySearch {searchId} after mbox.get failed",profile=self.debug)
+        for key in self.mbox.keys():
+            keyMsg=self.mbox.get(key)
+            msgId=keyMsg.get("Message-Id")
+            if msgId==searchId:
+                self.msg=keyMsg
+                break
+            pass
+        searchTime.time()
+        
+    def extract_message(self):
+        for key in self.msg.keys():
+            #https://stackoverflow.com/a/21715870/1497139
+            self.headers[key]=str(make_header(decode_header(self.msg.get(key))))
+        self.txtMsg=""
+        self.html=""
+        # https://stackoverflow.com/a/43833186/1497139
+        self.msgParts=[]
+        # decode parts
+        # https://stackoverflow.com/questions/59554237/how-to-handle-all-charset-and-content-type-when-reading-email-from-imap-lib-in-p
+        # https://gist.github.com/miohtama/5389146
+        for part in self.msg.walk():
+            self.msgParts.append(part)
+            part.length=len(part._payload)
+            # each part is a either non-multipart, or another multipart message
+            # that contains further parts... Message is organized like a tree
+            contentType=part.get_content_type()
+            charset = part.get_content_charset()
+            if charset is None:
+                charset='utf-8'
+            partname=part.get_param('name')
+            part.filename=self.fixedPartName(partname,contentType,len(self.msgParts))
+            if contentType == 'text/plain' or contentType== 'text/html':
+                part_str = part.get_payload(decode=1)
+                rawPart=part_str.decode(charset)
+                if contentType == 'text/plain':
+                    self.txtMsg+=rawPart
+                elif contentType == 'text/html':
+                    self.html+=rawPart
+            pass
+        self.handle_headers()
+                    
+    def handle_headers(self):
         # sort the headers
         self.headers=OrderedDict(sorted(self.headers.items()))
         if "From" in self.headers:
@@ -188,6 +194,25 @@ where m.headerMessageID==(?)"""
             self.toMailTo=f"mailto:{toAdr}"
             self.toUrl=f"<a href='{self.toMailTo}'>{toAdr}</a>"
         pass
+        
+    def search(self):
+        if self.debug:
+            print(f"Searching for mail with id {self.mailid} for user {self.user}")
+        query="""select m.*,f.* 
+from  messages m join
+folderLocations f on m.folderId=f.id
+where m.headerMessageID==(?)"""
+        params=(self.mailid,)
+        maillookup=self.tb.query(query,params)
+        #folderId=maillookup['folderId']
+        if self.debug:
+            print (maillookup)
+        if len(maillookup)==0:
+            return None
+        else:
+            mailInfo=maillookup[0]
+        return mailInfo
+ 
     
     def fixedPartName(self,partname:str,contentType:str,partIndex:int):
         '''
