@@ -43,7 +43,7 @@ class TestMail(BaseThunderbirdTest):
         see https://github.com/WolfgangFahl/pyThunderbird/issues/2
         Given a user id lookup the thunderbird profile
         """
-        user = "wf"
+        user = self.mock_user
         tb = Thunderbird.get(user)
         self.assertEqual(tb.user, user)
 
