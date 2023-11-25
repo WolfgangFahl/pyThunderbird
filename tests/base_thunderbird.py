@@ -15,7 +15,7 @@ class BaseThunderbirdTest(Basetest):
     Base class for Thunderbird related tests, handling common setup and utilities.
     """
 
-    def setUp(self, debug=False, profile=True, temp_dir:str=None):
+    def setUp(self, debug=True, profile=True, temp_dir:str=None):
         """
         Set up the test environment. Differentiate between development and other environments.
         
@@ -23,8 +23,8 @@ class BaseThunderbirdTest(Basetest):
             temp_dir(str): Configurable temporary directory path
         """
         Basetest.setUp(self, debug=debug, profile=profile)
-        self.debug = False
         self.user = getpass.getuser()
+        self.mock_user="mock-user"
         self.host = socket.gethostname()
         # handle temporary directory
         if temp_dir is None:
@@ -32,8 +32,7 @@ class BaseThunderbirdTest(Basetest):
         self.temp_dir =  temp_dir  
         # make sure the temp_dir exists
         os.makedirs(os.path.dirname(temp_dir), exist_ok=True)
-        if not self.is_developer():
-            self.mock_mail(self.user)
+        self.mock_mail()
 
     def is_developer(self) -> bool:
         """
@@ -44,16 +43,18 @@ class BaseThunderbirdTest(Basetest):
         """
         return self.user == "wf" and self.host == "fix.bitplan.com"
 
-    def mock_mail(self,user: str="wf"):
+    def mock_mail(self,user: str=None):
         """
         Create a mock SQLITE gloda and Thunderbird environment.
         
         Args:
             user (str): User name for whom the mail environment is mocked.
         """
+        if user is None:
+            user=self.mock_user
         db = os.path.join(self.temp_dir, f"gloda_{user}.sqlite")
         profile = os.path.join(self.temp_dir, f"tb_{user}.profile")       
-        mboxFile = os.path.join(profile, "Mail", "Local Folders", f"{user}.sbd", "2020-10")
+        mboxFile = os.path.join(profile, "Mail", "Local Folders", f"WF.sbd", "2020-10")
         # make sure the parent directories of the mailbox exist
         os.makedirs(os.path.dirname(mboxFile), exist_ok=True)
         messagesLod = [
@@ -104,7 +105,7 @@ Send Wikidata mailing list submissions to
         get a mocked mail
         """
         mail = Mail(
-            f"{self.user}",
+            f"{self.mock_user}",
             "mailman.45.1601640003.19840.wikidata@lists.wikimedia.org",
             debug=self.debug,
         )

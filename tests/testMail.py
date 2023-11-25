@@ -30,7 +30,7 @@ class TestMail(BaseThunderbirdTest):
         test Mail access
         """
         mail = self.getMockedMail()
-        self.assertEqual(mail.tb.user, self.user)
+        self.assertEqual(mail.tb.user, self.mock_user)
         self.assertTrue(mail.msg is not None)
         subject = mail.msg.get("subject")
         if self.debug:
