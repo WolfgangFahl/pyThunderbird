@@ -77,7 +77,7 @@ class Thunderbird(object):
 
 class Mail(object):
     '''
-    classdocs
+    a single mail
     '''
 
     def __init__(self, user,mailid,tb=None,debug=False,keySearch=True):

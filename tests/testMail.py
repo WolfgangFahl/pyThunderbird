@@ -101,7 +101,7 @@ class TestMail(BaseThunderbirdTest):
             if not ecre.search(header):
         TypeError: expected string or bytes-like object
         """
-        if self.isDeveloper():
+        if self.is_developer():
             user = "wf"
             tb = Thunderbird.get(user)
             debug = False
