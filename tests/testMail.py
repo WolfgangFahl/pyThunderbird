@@ -102,12 +102,11 @@ class TestMail(BaseThunderbirdTest):
         TypeError: expected string or bytes-like object
         """
         if self.is_developer():
-            user = "wf"
-            tb = Thunderbird.get(user)
+            tb = Thunderbird.get(self.user)
             debug = False
             mailid = "<61418716.20495.1635242774805@sb2-itd-337.admin.sb2>"
-            mail = Mail(user, mailid=mailid, tb=tb, debug=debug)
-            self.assertTrue(mail.found)
+            mail = Mail(self.user, mailid=mailid, tb=tb, debug=debug)
+            self.assertIsNotNone(mail.msg)
             if debug:
                 print(mail)
             msgParts = mail.msgParts

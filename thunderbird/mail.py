@@ -11,22 +11,73 @@ import mailbox
 from email.header import decode_header, make_header
 from mimetypes import guess_extension
 from ftfy import fix_text
+from datetime import datetime
 import re
 import sys
 import os
 import urllib
 import yaml
 from thunderbird.profiler import Profiler
+from dataclasses import dataclass
+from typing import List, Dict
 
+@dataclass
+class MailArchive:
+    """
+    Represents a single mail archive for a user.
 
-class Thunderbird(object):
+    Attributes:
+        user (str): The user to whom the mail archive belongs.
+        gloda_db_path (str): The file path of the mailbox global database (sqlite).
+        profile (str, optional): the thunderbird profile directory of this mailbox.
+        db_update_time (str, optional): The last update time of the mailbox database, default is None.
+    """
+    user: str
+    gloda_db_path: str
+    profile: str = None
+    db_update_time: str = None
+
+    def __post_init__(self):
+        """
+        Post-initialization processing to set the database update time.
+        """
+        self.db_update_time = self._get_db_update_time()
+
+    def _get_db_update_time(self) -> str:
+        """
+        Gets the formatted last update time of the mailbox database.
+
+        Returns:
+            str: The formatted last update time.
+        """
+        timestamp = os.path.getmtime(self.gloda_db_path)
+        return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+    
+    def to_dict(self) -> Dict[str, str]:
+        """
+        Converts the mail archive data to a dictionary.
+
+        Returns:
+            Dict[str, str]: The dictionary representation of the mail archive.
+        """
+        profile_shortened = os.path.basename(self.profile) if self.profile else None
+        ps_parts = profile_shortened.split(".") if profile_shortened and "." in profile_shortened else [profile_shortened]
+        profile_key = ps_parts[0] if ps_parts else None
+        return {
+            'user': self.user,
+            'gloda_db_path': self.gloda_db_path,
+            'profile': profile_key,
+            'updated': self.db_update_time
+        }
+
+class Thunderbird(MailArchive):
     """
     Thunderbird Mailbox access
     """
 
     profiles = {}
 
-    def __init__(self, user, db=None, profile=None):
+    def __init__(self, user:str, db=None, profile=None):
         """
         construct a Thunderbird access instance for the given user
         """
@@ -37,13 +88,14 @@ class Thunderbird(object):
                 profile = profileMap[user]
             else:
                 raise Exception(f"user {user} missing in .thunderbird.yaml")
-            self.db = profile["db"]
-            self.profile = profile["profile"]
-        else:
-            self.db = db
-            self.profile = profile
+            db = profile["db"]
+            profile = profile["profile"]
+            
+        # Call the super constructor
+        super().__init__(user=user, gloda_db_path=db,profile=profile)
+            
         try:
-            self.sqlDB = SQLDB(self.db, check_same_thread=False, timeout=5)
+            self.sqlDB = SQLDB(self.gloda_db_path, check_same_thread=False, timeout=5)
         except sqlite3.OperationalError as soe:
             print(f"could not open database {self.db}: {soe}")
             raise soe
@@ -78,6 +130,48 @@ class Thunderbird(object):
         records = self.sqlDB.query(sql_query, params)
         return records
 
+class MailArchives:
+    """
+    Manages a collection of MailArchive instances for different users.
+
+    Attributes:
+        user_list (List[str]): A list of user names.
+        mail_archives (Dict[str, MailArchive]): A dictionary mapping users to their MailArchive instances.
+    """
+    def __init__(self, user_list: List[str]):
+        """
+        Initializes the MailArchives with a list of users.
+
+        Args:
+            user_list (List[str]): A list of user names.
+        """
+        self.user_list = user_list
+        self.mail_archives = self._create_mail_archives()
+
+    def _create_mail_archives(self) -> Dict[str, MailArchive]:
+        """
+        Creates MailArchive instances for each user in the user list.
+        """
+        archives = {}
+        for user in self.user_list:
+            # Assuming Thunderbird.get(user) returns a Thunderbird instance with a valid mailbox DB path attribute
+            tb_instance = Thunderbird.get(user)
+            archives[user] = tb_instance
+        return archives
+
+    def as_view_lod(self) -> List[Dict[str,str]]:
+        """
+        Creates a list of dictionaries representation of the mail archives.
+
+        Returns:
+            List[Dict[str,str]]: A list of dictionaries, each representing a mail archive.
+        """
+        lod=[]
+        for index,archive in enumerate(self.mail_archives.values()):
+            record=archive.to_dict()
+            record["#"]=index
+            lod.append(record)
+        return lod
 
 class Mail(object):
     """

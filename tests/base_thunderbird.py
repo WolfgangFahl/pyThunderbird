@@ -17,7 +17,7 @@ class BaseThunderbirdTest(Basetest):
     Base class for Thunderbird related tests, handling common setup and utilities.
     """
 
-    def setUp(self, debug=True, profile=True, temp_dir:str=None):
+    def setUp(self, debug=False, profile=True, temp_dir:str=None):
         """
         Set up the test environment. Differentiate between development and other environments.
         

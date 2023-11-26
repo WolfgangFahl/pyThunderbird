@@ -8,8 +8,10 @@ from ngwidgets.webserver import WebserverConfig
 from ngwidgets.progress import Progressbar,NiceguiProgressbar
 from thunderbird.version import Version
 from nicegui import ui, Client, app
-from thunderbird.mail import Mail, Thunderbird
+from thunderbird.mail import Mail, Thunderbird, MailArchives
 from ngwidgets.background import BackgroundTaskHandler
+from ngwidgets.lod_grid import ListOfDictsGrid
+
 
 class ThunderbirdWebserver(InputWebserver):
     """
@@ -81,8 +83,9 @@ class ThunderbirdWebserver(InputWebserver):
         """
         select users
         """
-        user_names=list(self.mailboxes.keys())
-        self.add_select("users",user_names)
+        self.mail_archives=MailArchives(list(self.mailboxes.keys()))
+        self.view_lod=self.mail_archives.as_view_lod()
+        self.lod_grid=ListOfDictsGrid(lod=self.view_lod)
         
     async def home(self,_client:Client):
         '''
