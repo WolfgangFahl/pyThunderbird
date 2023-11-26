@@ -5,8 +5,10 @@ Created on 2023-11-24
 """
 import json
 from tests.base_thunderbird import BaseThunderbirdTest
-from thunderbird.mail import MailArchive, MailArchives, Thunderbird
+from thunderbird.mail import MailArchive, MailArchives, Thunderbird,\
+    ThunderbirdMailbox
 from ngwidgets.file_selector import FileSelector
+from ngwidgets.progress import TqdmProgressbar
 
 class TestArchive(BaseThunderbirdTest):
     """
@@ -95,4 +97,21 @@ class TestArchive(BaseThunderbirdTest):
         for expected_label in expected_labels:
             if self.find_in_tree(tree, expected_label):
                 found+=1
-        self.assertEqual(len(expected_labels),found)           
+        self.assertEqual(len(expected_labels),found)  
+        
+    def test_mailbox(self):    
+        if self.is_developer():
+            user=self.user
+            tb=Thunderbird.get(user)
+            path=f"{tb.profile}/Mail/Local Folders/WF.sbd/2023-07"
+            tb_mbox=ThunderbirdMailbox(path)
+            msg_count=tb_mbox.mbox.__len__()
+            print(msg_count)
+            
+    def test_create_index(self):
+        """
+        test create index
+        """
+        if self.is_developer():
+            tb=Thunderbird.get(self.user)
+            tb.create_index(force_create=True)

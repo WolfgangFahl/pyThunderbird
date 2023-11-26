@@ -7,8 +7,8 @@ import sys
 from argparse import ArgumentParser
 
 from ngwidgets.cmd import WebserverCmd
-
-from thunderbird.mail import Mail
+from ngwidgets.progress import Progressbar, TqdmProgressbar
+from thunderbird.mail import Mail, Thunderbird
 from thunderbird.tb_webserver import ThunderbirdWebserver
 
 
@@ -25,6 +25,7 @@ class ThunderbirdMailCmd(WebserverCmd):
         parser.add_argument('-u','--user',type=str,help="id of the user")       
         parser.add_argument('-m','--mailid',type=str,help="id of the mail to retrieve")
         parser.add_argument('-ul','--user-list', default=[], nargs='+')
+        parser.add_argument('-ci','--create-index',action="store_true",help="create an alternative index for the given users's Thunderbird mailarchive")
         return parser
     
     def handle_args(self) -> bool:
@@ -44,10 +45,14 @@ class ThunderbirdMailCmd(WebserverCmd):
         args = self.args
     
         # Check if both user and id arguments are provided
-        if args.user is None or args.mailid is None:
-            self.parser.print_help()
-            return False
-        else:
+        if args.user is None:
+            if args.mailid is None and not args.create_index:
+                self.parser.print_help()
+                return False
+        elif args.create_index:
+            tb=Thunderbird.get(args.user)
+            tb.create_index()
+        elif args.mailid:
             # Creating a Mail object with the provided arguments
             mail = Mail(user=args.user, mailid=args.mailid, debug=args.debug)
             if mail.found:

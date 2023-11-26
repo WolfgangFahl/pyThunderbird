@@ -11,7 +11,7 @@ from ngwidgets.progress import NiceguiProgressbar, Progressbar
 from ngwidgets.webserver import WebserverConfig
 from nicegui import Client, app, ui
 
-from thunderbird.mail import Mail, MailArchives, Thunderbird
+from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
 from thunderbird.version import Version
 
 class ThunderbirdWebserver(InputWebserver):
@@ -69,6 +69,9 @@ class ThunderbirdWebserver(InputWebserver):
         """
         show the folder with the given path
         """
+        tb_mbox=ThunderbirdMailbox(path)
+        msg_count=tb_mbox.mbox.__len__()
+        ui.html(f"{msg_count:5}")
         pass
         
     async def showMail(self, user: str, mailid: str):
