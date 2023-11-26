@@ -3,15 +3,16 @@ Created on 2023-11-23
 
 @author: wf
 """
-from ngwidgets.input_webserver import InputWebserver
-from ngwidgets.webserver import WebserverConfig
-from ngwidgets.progress import Progressbar,NiceguiProgressbar
-from thunderbird.version import Version
-from nicegui import ui, Client, app
-from thunderbird.mail import Mail, Thunderbird, MailArchives
 from ngwidgets.background import BackgroundTaskHandler
+from ngwidgets.file_selector import FileSelector
+from ngwidgets.input_webserver import InputWebserver
 from ngwidgets.lod_grid import ListOfDictsGrid
+from ngwidgets.progress import NiceguiProgressbar, Progressbar
+from ngwidgets.webserver import WebserverConfig
+from nicegui import Client, app, ui
 
+from thunderbird.mail import Mail, MailArchives, Thunderbird
+from thunderbird.version import Version
 
 class ThunderbirdWebserver(InputWebserver):
     """
@@ -38,16 +39,38 @@ class ThunderbirdWebserver(InputWebserver):
         @ui.page("/mail/{user}/{mailid}")
         async def showMail(user: str, mailid: str):
             return await self.showMail(user, mailid)
-
-    def initUsers(self,userList):
+        
+        @ui.page("/profile/{user}/{profile_key}")
+        async def show_folders(user: str, profile_key: str):
+            return await self.show_folders(user,profile_key)
+  
+    async def show_folders(self, user: str, profile_key: str) -> None:
         """
-        initialize my users
-        """
-        self.mailboxes={}
-        for user in userList:
-            self.mailboxes[user]=Thunderbird.get(user)
-        pass
+        Asynchronously shows a user's folder contents based on a profile key.
     
+        Args:
+            user (str): Username for identifying the user profile.
+            profile_key (str): Thunderbird profile key
+    
+        Returns:
+            None: The function is intended for display purposes only.
+        """
+        def show_ui():
+            if user not in self.mail_archives.mail_archives:
+                ui.html(f"Unknown user {user}")
+            else:
+                tb=self.mail_archives.mail_archives[user]
+                path=f"{tb.profile}/Mail/Local Folders"
+                extensions={"Folder":".sbd","Mailbox":""}
+                self.folder_selector=FileSelector(path=path,extensions=extensions,handler=self.show_folder)
+        await self.setup_content_div(show_ui)      
+        
+    async def show_folder(self,path:str):
+        """
+        show the folder with the given path
+        """
+        pass
+        
     async def showMail(self, user: str, mailid: str):
         """
         show the given mail of the given user
@@ -57,7 +80,7 @@ class ThunderbirdWebserver(InputWebserver):
             """
             get the mail
             """
-            tb = self.mailboxes[user]
+            tb = self.mail_archives.mail_archives[user]
             mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
             html_markup=mail.as_html()
             self.mail_view.content = html_markup
@@ -65,7 +88,7 @@ class ThunderbirdWebserver(InputWebserver):
 
         async def show():
             self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
-            if user in self.mailboxes:
+            if user in self.mail_archives:
                 self.mail_view= ui.html(f"Loading {mailid} for user {user}")
                 self.future, result_coro = self.bth.execute_in_background(get_mail)
             else:
@@ -75,15 +98,14 @@ class ThunderbirdWebserver(InputWebserver):
 
     def configure_run(self):
         """
-        configure the allowed urls
+        configure me e.g. the allowed urls
         """
-        self.initUsers(self.args.user_list)
+        self.mail_archives=MailArchives(self.args.user_list)
         
     def setup_content(self):
         """
         select users
         """
-        self.mail_archives=MailArchives(list(self.mailboxes.keys()))
         self.view_lod=self.mail_archives.as_view_lod()
         self.lod_grid=ListOfDictsGrid(lod=self.view_lod)
         

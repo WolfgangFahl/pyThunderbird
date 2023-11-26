@@ -5,6 +5,7 @@ Created on 2021-10-15
 '''
 import time
 
+
 class Profiler:
     '''
     simple profiler

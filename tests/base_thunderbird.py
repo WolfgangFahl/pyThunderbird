@@ -3,14 +3,17 @@ Refactored on 2023-11-24
 
 @author: wf
 """
-from lodstorage.sql import SQLDB
-import os
 import getpass
+import os
 import socket
-import yaml
 from pathlib import Path
+
+import yaml
+from lodstorage.sql import SQLDB
 from ngwidgets.basetest import Basetest
-from thunderbird.mail import Mail,Thunderbird
+
+from thunderbird.mail import Mail, Thunderbird
+
 
 class BaseThunderbirdTest(Basetest):
     """

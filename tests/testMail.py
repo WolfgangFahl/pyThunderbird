@@ -3,10 +3,12 @@ Created on 24.10.2020
 
 @author: wf
 """
-from thunderbird.mail import Mail, Thunderbird
 import mailbox
 import os
+
 from tests.base_thunderbird import BaseThunderbirdTest
+from thunderbird.mail import Mail, Thunderbird
+
 
 class TestMail(BaseThunderbirdTest):
     """

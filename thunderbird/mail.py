@@ -3,23 +3,27 @@ Created on 2020-10-24
 
 @author: wf
 """
-from lodstorage.sql import SQLDB
-from pathlib import Path
-import sqlite3
-from collections import OrderedDict
 import mailbox
+import os
+import re
+import sqlite3
+import sys
+import urllib
+from collections import OrderedDict
+from dataclasses import dataclass
+from datetime import datetime
 from email.header import decode_header, make_header
 from mimetypes import guess_extension
-from ftfy import fix_text
-from datetime import datetime
-import re
-import sys
-import os
-import urllib
+from pathlib import Path
+from typing import Dict, List
+
 import yaml
+from ftfy import fix_text
+from ngwidgets.widgets import Link
+from lodstorage.sql import SQLDB
+
 from thunderbird.profiler import Profiler
-from dataclasses import dataclass
-from typing import List, Dict
+
 
 @dataclass
 class MailArchive:
@@ -53,9 +57,12 @@ class MailArchive:
         timestamp = os.path.getmtime(self.gloda_db_path)
         return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
     
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self,index:int=None) -> Dict[str, str]:
         """
         Converts the mail archive data to a dictionary.
+        
+        Args:
+            index (int, optional): An optional index to be added to the dictionary.
 
         Returns:
             Dict[str, str]: The dictionary representation of the mail archive.
@@ -63,12 +70,15 @@ class MailArchive:
         profile_shortened = os.path.basename(self.profile) if self.profile else None
         ps_parts = profile_shortened.split(".") if profile_shortened and "." in profile_shortened else [profile_shortened]
         profile_key = ps_parts[0] if ps_parts else None
-        return {
+        record = {
             'user': self.user,
             'gloda_db_path': self.gloda_db_path,
             'profile': profile_key,
             'updated': self.db_update_time
         }
+        if index is not None:
+            record = {'#': index, **record}
+        return record
 
 class Thunderbird(MailArchive):
     """
@@ -168,10 +178,64 @@ class MailArchives:
         """
         lod=[]
         for index,archive in enumerate(self.mail_archives.values()):
-            record=archive.to_dict()
-            record["#"]=index
+            record=archive.to_dict(index+1)
+            user=record["user"]
+            profile=record["profile"]
+            record["profile"]=Link.create(f"/profile/{user}/{profile}",profile)
             lod.append(record)
         return lod
+    
+class ThunderbirdMailbox:
+    """
+    mailbox wrapper
+    """
+    
+    def __init__(self,folder_path:str,debug:bool=False):
+        """
+        construct the Mailbox
+        """
+        self.folder_path=folder_path
+        self.debug=debug
+        if not os.path.isfile(folder_path):
+            msg=f"{folder_path} does not exist"
+            raise ValueError(msg)
+        self.mbox = mailbox.mbox(folder_path)
+        
+    def get_message_by_key(self, messageKey):
+        """
+        get the message by its message key
+        """
+        getTime = Profiler(
+            f"mbox.get {messageKey-1} from {self.folder_path}", profile=self.debug
+        )
+        msg = self.mbox.get(messageKey - 1)
+        getTime.time()
+        return msg
+    
+    def search_message_by_key(self,mailid:str):
+        """
+        search messages by key
+        """
+        msg=None
+        searchId = f"<{mailid}>"
+        searchTime = Profiler(
+            f"keySearch {searchId} after mbox.get failed", profile=self.debug
+        )
+        for key in self.mbox.keys():
+            keyMsg = self.mbox.get(key)
+            msgId = keyMsg.get("Message-Id")
+            if msgId == searchId:
+                msg = keyMsg
+                break
+            pass
+        searchTime.time()
+        return msg
+        
+    def close(self):
+        """
+        close the mailbox
+        """
+        self.mbox.close()
 
 class Mail(object):
     """
@@ -211,45 +275,15 @@ class Mail(object):
             folderURI = urllib.parse.unquote(folderURI)
             sbdFolder, self.folder = Mail.toSbdFolder(folderURI)
             folderPath = self.tb.profile + sbdFolder
-            self.get_message_by_key(folderPath, messageKey)
+            tb_mbox=ThunderbirdMailbox(folderPath,debug=self.debug)
+            self.msg=tb_mbox.get_message_by_key(messageKey)
             # if lookup fails we might loop thru
             # all messages if this option is active ...
             if self.msg is None and self.keySearch:
-                self.search_message_by_key()
+                self.msg=tb_mbox.search_message_by_key(self.mailid)
             if self.msg is not None:
                 self.extract_message()
-            self.mbox.close()
-
-    def get_message_by_key(self, folderPath, messageKey):
-        """
-        get the message by its message key
-        """
-        if not os.path.isfile(folderPath):
-            print(f"{folderPath} does not exist", file=sys.stderr)
-        else:
-            self.mbox = mailbox.mbox(folderPath)
-            getTime = Profiler(
-                f"mbox.get {messageKey-1} from {folderPath}", profile=self.debug
-            )
-            self.msg = self.mbox.get(messageKey - 1)
-            getTime.time()
-
-    def search_message_by_key(self):
-        """
-        search messages by key
-        """
-        searchId = f"<{self.mailid}>"
-        searchTime = Profiler(
-            f"keySearch {searchId} after mbox.get failed", profile=self.debug
-        )
-        for key in self.mbox.keys():
-            keyMsg = self.mbox.get(key)
-            msgId = keyMsg.get("Message-Id")
-            if msgId == searchId:
-                self.msg = keyMsg
-                break
-            pass
-        searchTime.time()
+            tb_mbox.close()
 
     def extract_message(self):
         for key in self.msg.keys():
