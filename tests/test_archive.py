@@ -5,8 +5,7 @@ Created on 2023-11-24
 """
 
 from tests.base_thunderbird import BaseThunderbirdTest
-from thunderbird.archive import MailArchive, MailArchives  
-import os
+from thunderbird.mail import MailArchive, MailArchives  
 
 class TestArchive(BaseThunderbirdTest):
     """
@@ -19,7 +18,7 @@ class TestArchive(BaseThunderbirdTest):
         """
         # Calling the setup of the base class with required parameters
         super().setUp(debug=False, profile=True)
-        self.mock_mail('wf')  # Ensure the mock mail environment for user 'wf' is set up
+        self.mock_mail()  # Ensure the mock mail environment for the mock_user is setup
 
     def test_mail_archive_creation_and_update_time(self):
         """
@@ -35,7 +34,7 @@ class TestArchive(BaseThunderbirdTest):
         """
         Test the creation of MailArchives with multiple users and the as_view_lod method.
         """
-        users = ['wf', 'test_user']
+        users = ['test_user1', 'test_user2']
         for user in users:
             self.mock_mail(user)
         archives = MailArchives(users)
