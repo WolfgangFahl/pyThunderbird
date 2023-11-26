@@ -3,11 +3,14 @@ Created on 2023-11-23
 
 @author: wf
 """
-from ngwidgets.cmd import WebserverCmd
-from thunderbird.tb_webserver import ThunderbirdWebserver
-from thunderbird.mail import Mail
 import sys
 from argparse import ArgumentParser
+
+from ngwidgets.cmd import WebserverCmd
+
+from thunderbird.mail import Mail
+from thunderbird.tb_webserver import ThunderbirdWebserver
+
 
 class ThunderbirdMailCmd(WebserverCmd):
     """

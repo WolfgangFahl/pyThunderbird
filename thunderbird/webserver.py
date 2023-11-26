@@ -6,10 +6,13 @@ Created on 2021-09-23
 
 import os.path
 from datetime import datetime
-from flask import abort,render_template, url_for, send_from_directory
-from fb4.widgets import MenuItem
+
 from fb4.app import AppWrap
+from fb4.widgets import MenuItem
+from flask import abort, render_template, send_from_directory, url_for
+
 from thunderbird.mail import Mail, Thunderbird
+
 
 class WebServer(AppWrap):
     ''' 

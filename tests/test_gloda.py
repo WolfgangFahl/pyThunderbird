@@ -3,10 +3,13 @@ Created on 25.11.2023
 
 @author: wf
 """
-from ngwidgets.basetest import Profiler
-from thunderbird.mail import Thunderbird
-from tests.base_thunderbird import BaseThunderbirdTest
 import json
+
+from ngwidgets.basetest import Profiler
+
+from tests.base_thunderbird import BaseThunderbirdTest
+from thunderbird.mail import Thunderbird
+
 
 class TestGloda(BaseThunderbirdTest):
     """

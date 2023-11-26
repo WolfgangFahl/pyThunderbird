@@ -3,8 +3,10 @@ Created on 2023-11-23
 
 @author: wf
 """
-import thunderbird
 from dataclasses import dataclass
+
+import thunderbird
+
 
 @dataclass
 class Version(object):
