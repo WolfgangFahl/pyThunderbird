@@ -146,7 +146,7 @@ class Thunderbird(MailArchive):
         traverse_tree(file_selector.tree_structure)
         return mailboxes  
     
-    def create_index(self, progress_bar: Optional[Progressbar] = None, force_create: bool = False, verbose: bool = False) -> None:
+    def create_index(self, progress_bar: Optional[Progressbar] = None, force_create: bool = False, verbose: bool = True) -> None:
         """
         Create an index of emails from Thunderbird mailboxes, storing the data in an SQLite database.
 
@@ -197,8 +197,8 @@ class Thunderbird(MailArchive):
         total_successes = sum(success.values())
         success_rate = (total_successes / total_mailboxes) * 100 if total_mailboxes > 0 else 0
         error_rate = (total_errors / total_mailboxes) * 100 if total_mailboxes > 0 else 0
-        marker="❌ "if len(errors>0) else "✅"
-        msg_channel=sys.stderr if len(errors>0) else sys.stdout
+        marker="❌ "if len(errors)>0 else "✅"
+        msg_channel=sys.stderr if len(errors)>0 else sys.stdout
         summary_msg = f"Indexing completed: {marker} {total_successes}/{total_mailboxes} successful ({success_rate:.2f}%), {total_errors} errors ({error_rate:.2f}%)."
         print(summary_msg,file=msg_channel)
 
