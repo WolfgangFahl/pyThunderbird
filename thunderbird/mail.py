@@ -9,20 +9,23 @@ import re
 import sqlite3
 import sys
 import urllib
-from collections import OrderedDict
+from collections import Counter,OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from email.header import decode_header, make_header
 from mimetypes import guess_extension
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import yaml
 from ftfy import fix_text
+from ngwidgets.file_selector import FileSelector
 from ngwidgets.widgets import Link
+from ngwidgets.progress import Progressbar
 from lodstorage.sql import SQLDB
 
 from thunderbird.profiler import Profiler
+from ngwidgets.progress import TqdmProgressbar
 
 
 @dataclass
@@ -38,6 +41,7 @@ class MailArchive:
     """
     user: str
     gloda_db_path: str
+    index_db_path: str = None
     profile: str = None
     db_update_time: str = None
 
@@ -110,6 +114,93 @@ class Thunderbird(MailArchive):
             print(f"could not open database {self.db}: {soe}")
             raise soe
         pass
+    
+    def get_mailboxes(self):
+        """
+        Create an dict of Thunderbird mailboxes.
+
+
+        """
+        # Helper function to add mailbox to the dictionary
+        def add_mailbox(node):
+            # Check if the node is at the root level or a .sbd directory node
+            if node["id"]=="1" or  node["label"].endswith(".sbd"):
+                return
+            if not node["label"].endswith(".sbd"):  # It's a mailbox
+                mailbox_path = node["value"]
+                mailboxes[mailbox_path] = ThunderbirdMailbox(mailbox_path)
+                
+        path = f"{self.profile}/Mail/Local Folders"
+        extensions = {"Folder": ".sbd", "Mailbox": ""}
+        file_selector = FileSelector(path=path, extensions=extensions, create_ui=False)
+
+        mailboxes = {}  # Dictionary to store ThunderbirdMailbox instances
+
+        # Define the recursive lambda function for tree traversal
+        traverse_tree = (lambda func: (lambda node: func(func, node)))(lambda self, node: (
+            add_mailbox(node),
+            [self(self, child) for child in node.get("children", [])]
+        ))
+
+        # Traverse the tree and populate the mailboxes dictionary
+        traverse_tree(file_selector.tree_structure)
+        return mailboxes  
+    
+    def create_index(self, progress_bar: Optional[Progressbar] = None, force_create: bool = False, verbose: bool = False) -> None:
+        """
+        Create an index of emails from Thunderbird mailboxes, storing the data in an SQLite database.
+
+        Args:
+            progress_bar (TqdmProgressbar, optional): Progress bar to display the progress of index creation.
+            force_create (bool, optional): If True, forces the creation of a new table even if it already exists.
+            verbose (bool, optional): If True, prints detailed error and success messages; otherwise, only prints a summary.
+
+        Raises:
+            Exception: If any error occurs during database operations.
+        """
+        mailboxes=self.get_mailboxes()
+        if progress_bar is None:
+            progress_bar=TqdmProgressbar(total=len(mailboxes),desc="create index",unit="mailbox")      
+        errors={}    
+        success=Counter()
+        for mailbox in mailboxes.values():
+            try:        
+                mbox_lod=mailbox.get_index_lod()
+                progress_bar.update(1)
+                if self.index_db_path is None:
+                    self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
+                    db_exist=os.path.isfile(self.index_db_path)
+                    db = SQLDB(self.index_db_path)
+                    if not db_exist or force_create:
+                        entity_info = db.createTable(mbox_lod, "mail_index",withCreate=True,withDrop=True)
+                    db.store(mbox_lod, entity_info)
+                    success[mailbox.folder_path]=len(mbox_lod)
+            except Exception as ex:
+                errors[mailbox.folder_path]=ex
+        # Detailed error and success messages
+        if verbose:
+            if errors:
+                err_msg = "Errors occurred during index creation:\n"
+                for path, error in errors.items():
+                    err_msg += f"Error in {path}: {error}\n"
+                print(err_msg, file=sys.stderr)
+
+            if success:
+                success_msg = "Index created successfully for:\n"
+                for path, count in success.items():
+                    success_msg += f"{path}: {count} entries\n"
+                print(success_msg)
+
+        # Summary
+        total_mailboxes = len(mailboxes)
+        total_errors = len(errors)
+        total_successes = sum(success.values())
+        success_rate = (total_successes / total_mailboxes) * 100 if total_mailboxes > 0 else 0
+        error_rate = (total_errors / total_mailboxes) * 100 if total_mailboxes > 0 else 0
+        marker="❌ "if len(errors>0) else "✅"
+        msg_channel=sys.stderr if len(errors>0) else sys.stdout
+        summary_msg = f"Indexing completed: {marker} {total_successes}/{total_mailboxes} successful ({success_rate:.2f}%), {total_errors} errors ({error_rate:.2f}%)."
+        print(summary_msg,file=msg_channel)
 
     @staticmethod
     def getProfileMap():
@@ -200,6 +291,23 @@ class ThunderbirdMailbox:
             msg=f"{folder_path} does not exist"
             raise ValueError(msg)
         self.mbox = mailbox.mbox(folder_path)
+        
+    def get_index_lod(self):
+        """
+        get the list of dicts for indexing
+        """
+        lod=[]
+        for message in self.mbox:
+            record = {
+                "message_id": message.get("Message-ID"),
+                "sender": message.get("From"),
+                "recipient": message.get("To"),
+                "subject": message.get("Subject"),
+                "date": message.get("Date"),
+                # Add more fields as necessary
+            }
+            lod.append(record)
+        return lod
         
     def get_message_by_key(self, messageKey):
         """
