@@ -314,10 +314,10 @@ class ThunderbirdMailbox:
             start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
             record = {
                 "folder_path": self.relative_folder_path,
-                "message_id": message.get("Message-ID"),
-                "sender": message.get("From"),
-                "recipient": message.get("To"),
-                "subject": message.get("Subject"),
+                "message_id": message.get("Message-ID",f"{self.relative_folder_path}#{idx}"),
+                "sender": str(message.get("From","?")),
+                "recipient": str(message.get("To","?")),
+                "subject": str(message.get("Subject","?")),
                 "date": message.get("Date"),
                 "start_pos": start_pos,
                 "stop_pos": stop_pos
