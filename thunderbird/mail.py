@@ -158,24 +158,26 @@ class Thunderbird(MailArchive):
         Raises:
             Exception: If any error occurs during database operations.
         """
+        if self.index_db_path is None:
+            self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
+            db_exist=os.path.isfile(self.index_db_path)
+        db = SQLDB(self.index_db_path)
         mailboxes=self.get_mailboxes()
         if progress_bar is None:
             progress_bar=TqdmProgressbar(total=len(mailboxes),desc="create index",unit="mailbox")      
         errors={}    
         success=Counter()
+        first=True
         for mailbox in mailboxes.values():
             try:        
                 mbox_lod=mailbox.get_index_lod()
                 progress_bar.update(1)
-                with_create=False
-                if self.index_db_path is None:
-                    self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
-                    db_exist=os.path.isfile(self.index_db_path)
-                    with_create=not db_exist or force_create
-                db = SQLDB(self.index_db_path)
                 message_count=len(mbox_lod)
                 if message_count>0:
-                    entity_info = db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
+                    if first:
+                        with_create=not db_exist or force_create
+                        entity_info = db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
+                        first=False
                     db.store(mbox_lod, entity_info, fixNone=True)
                 success[mailbox.folder_path]=message_count
             except Exception as ex:
