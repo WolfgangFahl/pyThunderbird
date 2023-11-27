@@ -173,9 +173,11 @@ class Thunderbird(MailArchive):
                     db_exist=os.path.isfile(self.index_db_path)
                     with_create=not db_exist or force_create
                 db = SQLDB(self.index_db_path)
-                entity_info = db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
-                db.store(mbox_lod, entity_info, fixNone=True)
-                success[mailbox.folder_path]=len(mbox_lod)
+                message_count=len(mbox_lod)
+                if message_count>0:
+                    entity_info = db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
+                    db.store(mbox_lod, entity_info, fixNone=True)
+                success[mailbox.folder_path]=message_count
             except Exception as ex:
                 errors[mailbox.folder_path]=ex
         # Detailed error and success messages
