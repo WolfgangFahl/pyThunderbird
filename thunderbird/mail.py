@@ -191,16 +191,18 @@ class Thunderbird(MailArchive):
                     success_msg += f"{path}: {count} entries\n"
                 print(success_msg)
 
-        # Summary
         total_mailboxes = len(mailboxes)
         total_errors = len(errors)
         total_successes = sum(success.values())
-        success_rate = (total_successes / total_mailboxes) * 100 if total_mailboxes > 0 else 0
+        average_success = (total_successes / len(success)) if success else 0
         error_rate = (total_errors / total_mailboxes) * 100 if total_mailboxes > 0 else 0
-        marker="❌ "if len(errors)>0 else "✅"
-        msg_channel=sys.stderr if len(errors)>0 else sys.stdout
-        summary_msg = f"Indexing completed: {marker} {total_successes}/{total_mailboxes} successful ({success_rate:.2f}%), {total_errors} errors ({error_rate:.2f}%)."
-        print(summary_msg,file=msg_channel)
+        marker = "❌ " if len(errors) > 0 else "✅"
+        msg_channel = sys.stderr if len(errors) > 0 else sys.stdout
+        summary_msg = (f"Indexing completed: {marker} Total indexed messages: {total_successes}, "
+                       f"Average messages per successful mailbox: {average_success:.2f}, "
+                       f"{total_errors} mailboxes with errors ({error_rate:.2f}%).")
+        print(summary_msg, file=msg_channel)
+
 
     @staticmethod
     def getProfileMap():
