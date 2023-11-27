@@ -295,6 +295,12 @@ class ThunderbirdMailbox:
         if not os.path.isfile(folder_path):
             msg=f"{folder_path} does not exist"
             raise ValueError(msg)
+        # Check if "Mail/Local Folders" is in the folder path and split accordingly
+        if "Mail/Local Folders" in folder_path:
+            self.relative_folder_path = folder_path.split("Mail/Local Folders")[-1]
+        else:
+            # If the specific string is not found, use the entire folder_path or handle as needed
+            self.relative_folder_path = folder_path
         self.mbox = mailbox.mbox(folder_path)
         
     def get_index_lod(self):
@@ -302,14 +308,17 @@ class ThunderbirdMailbox:
         get the list of dicts for indexing
         """
         lod=[]
-        for message in self.mbox:
+        for idx,message in enumerate(self.mbox):          
+            start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
             record = {
+                "folder_path": self.relative_folder_path,
                 "message_id": message.get("Message-ID"),
                 "sender": message.get("From"),
                 "recipient": message.get("To"),
                 "subject": message.get("Subject"),
                 "date": message.get("Date"),
-                # Add more fields as necessary
+                "start_pos": start_pos,
+                "stop_pos": stop_pos
             }
             lod.append(record)
         return lod
