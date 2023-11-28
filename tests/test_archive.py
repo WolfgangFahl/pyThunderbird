@@ -99,12 +99,15 @@ class TestArchive(BaseThunderbirdTest):
                 found+=1
         self.assertEqual(len(expected_labels),found)  
         
-    def test_mailbox(self):    
+    def test_mailbox(self):  
+        """
+        test mailbox access
+        """  
         if self.is_developer():
             user=self.user
             tb=Thunderbird.get(user)
             path=f"{tb.profile}/Mail/Local Folders/WF.sbd/2023-07"
-            tb_mbox=ThunderbirdMailbox(path)
+            tb_mbox=ThunderbirdMailbox(tb,path)
             msg_count=tb_mbox.mbox.__len__()
             print(msg_count)
             

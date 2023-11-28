@@ -35,6 +35,7 @@ class ThunderbirdWebserver(InputWebserver):
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
         self.bth=BackgroundTaskHandler()
         app.on_shutdown(self.bth.cleanup())
+        self.tb=None
         
         @ui.page("/mail/{user}/{mailid}")
         async def showMail(user: str, mailid: str):
@@ -59,8 +60,8 @@ class ThunderbirdWebserver(InputWebserver):
             if user not in self.mail_archives.mail_archives:
                 ui.html(f"Unknown user {user}")
             else:
-                tb=self.mail_archives.mail_archives[user]
-                path=f"{tb.profile}/Mail/Local Folders"
+                self.tb=self.mail_archives.mail_archives[user]
+                path=f"{self.tb.profile}/Mail/Local Folders"
                 extensions={"Folder":".sbd","Mailbox":""}
                 self.folder_selector=FileSelector(path=path,extensions=extensions,handler=self.show_folder)
         await self.setup_content_div(show_ui)      
@@ -69,9 +70,10 @@ class ThunderbirdWebserver(InputWebserver):
         """
         show the folder with the given path
         """
-        tb_mbox=ThunderbirdMailbox(path)
-        msg_count=tb_mbox.mbox.__len__()
-        ui.html(f"{msg_count:5}")
+        if self.tb:
+            tb_mbox=ThunderbirdMailbox(self.tb,path)
+            msg_count=tb_mbox.mbox.__len__()
+            ui.html(f"{msg_count:5} ({path}")
         pass
         
     async def showMail(self, user: str, mailid: str):
