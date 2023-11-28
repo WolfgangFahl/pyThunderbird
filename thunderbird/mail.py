@@ -160,7 +160,7 @@ class Thunderbird(MailArchive):
         """
         if self.index_db_path is None:
             self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
-            db_exist=os.path.isfile(self.index_db_path)
+        db_exist = os.path.isfile(self.index_db_path) and os.path.getsize(self.index_db_path) > 0
         db = SQLDB(self.index_db_path)
         mailboxes=self.get_mailboxes()
         if progress_bar is None:
@@ -304,6 +304,64 @@ class ThunderbirdMailbox:
             # If the specific string is not found, use the entire folder_path or handle as needed
             self.relative_folder_path = folder_path
         self.mbox = mailbox.mbox(folder_path)
+
+    def restore_toc_from_sqldb(self, sql_db: SQLDB) -> None:
+        """
+        Restore the table of contents from the given SQL database.
+
+        This method fetches the TOC data from the SQLite database and uses it to rebuild the TOC in the mailbox.
+
+        Args:
+            sql_db (SQLDB): An instance of SQLDB connected to the SQLite database.
+        """
+        index_lod = self.get_toc_lod_from_sqldb(sql_db)
+        self.restore_toc_from_lod(index_lod)
+
+    def get_toc_lod_from_sqldb(self, sql_db: SQLDB) -> list:
+        """
+        Retrieve the index list of dictionaries (LoD) representing the TOC from the given SQL database.
+
+        This method performs a SQL query to fetch the TOC information, which includes the email index, start position,
+        and stop position for each email in the mailbox corresponding to the current folder path.
+
+        Args:
+            sql_db (SQLDB): An instance of SQLDB connected to the SQLite database.
+
+        Returns:
+            list: A list of dictionaries, each containing the TOC information for an email.
+        """
+        sql_query = """SELECT email_index, 
+start_pos, 
+stop_pos 
+FROM mail_index 
+WHERE folder_path = ?
+ORDER BY email_index"""
+        folder_path_param = (self.relative_folder_path,)
+        index_lod = sql_db.query(sql_query, folder_path_param)
+        return index_lod
+
+    def restore_toc_from_lod(self, index_lod: list) -> None:
+        """
+        Restores the table of contents of the mailbox using records from an SQLite database.
+
+        This method iterates over a list of dictionaries where each dictionary contains details about an email,
+        including its positions in the mailbox file. It uses this information to reconstruct the mailbox's TOC.
+
+        Args:
+            index_lod (list of dict): A list of records from the SQLite database. Each record is a dictionary
+                                      containing details about an email, including its positions in the mailbox file.
+        """
+        # Reinitialize the mailbox's TOC structure
+        self.mbox._toc = {}
+
+        # Iterate over the index records to rebuild the TOC
+        for record in index_lod:
+            idx = record['email_index']
+            start_pos = record['start_pos']
+            stop_pos = record['stop_pos']
+
+            # Update the TOC with the new positions
+            self.mbox._toc[idx] = (start_pos, stop_pos)
         
     def get_index_lod(self):
         """
@@ -319,6 +377,8 @@ class ThunderbirdMailbox:
                 "recipient": str(message.get("To","?")),
                 "subject": str(message.get("Subject","?")),
                 "date": message.get("Date"),
+                # toc columns
+                "email_index": idx,
                 "start_pos": start_pos,
                 "stop_pos": stop_pos
             }
