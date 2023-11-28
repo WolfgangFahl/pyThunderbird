@@ -115,7 +115,7 @@ class Thunderbird(MailArchive):
             raise soe
         pass
         self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
-        self.index_db = SQLDB(self.index_db_path)
+        self.index_db = SQLDB(self.index_db_path,check_same_thread=False)
         
     def index_db_exists(self)->bool:
         result = os.path.isfile(self.index_db_path) and os.path.getsize(self.index_db_path) > 0
@@ -361,11 +361,9 @@ class ThunderbirdMailbox:
             sql_db (SQLDB): An instance of SQLDB connected to the SQLite database.
 
         Returns:
-            list: A list of dictionaries, each containing the TOC information for an email.
+            list: A list of dictionaries, each containing the index and TOC information for an email.
         """
-        sql_query = """SELECT email_index, 
-start_pos, 
-stop_pos 
+        sql_query = """SELECT *
 FROM mail_index 
 WHERE folder_path = ?
 ORDER BY email_index"""

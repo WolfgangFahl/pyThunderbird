@@ -10,7 +10,7 @@ from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.progress import NiceguiProgressbar, Progressbar
 from ngwidgets.webserver import WebserverConfig
 from nicegui import Client, app, ui
-
+from ngwidgets.basetest import Profiler
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
 from thunderbird.version import Version
 
@@ -36,6 +36,8 @@ class ThunderbirdWebserver(InputWebserver):
         self.bth=BackgroundTaskHandler()
         app.on_shutdown(self.bth.cleanup())
         self.tb=None
+        self.folder_view=None
+        self.folder_grid=None
         
         @ui.page("/mail/{user}/{mailid}")
         async def showMail(user: str, mailid: str):
@@ -70,12 +72,20 @@ class ThunderbirdWebserver(InputWebserver):
         """
         show the folder with the given path
         """
+        def show_index():
+            index_lod=tb_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
+            msg_count=tb_mbox.mbox.__len__()
+            self.folder_view.content=(f"{msg_count:5} ({path}")
+            self.folder_grid.load_lod(lod=index_lod)
+            
         if self.tb:
             tb_mbox=ThunderbirdMailbox(self.tb,path)
-            index_lod=tb_mbox.get_index_lod()
-            msg_count=tb_mbox.mbox.__len__()
-            self.folder_view=ui.html(f"{msg_count:5} ({path}")
-            self.folder_grid=ListOfDictsGrid(lod=index_lod)
+            if not self.folder_view:
+                self.folder_view=ui.html()
+            self.folder_view.content=f"Loading {tb_mbox.relative_folder_path} ..."
+            if not self.folder_grid:
+                self.folder_grid=ListOfDictsGrid()
+            self.bth.execute_in_background(show_index)
         pass
         
     async def showMail(self, user: str, mailid: str):
