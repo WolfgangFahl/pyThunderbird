@@ -114,11 +114,16 @@ class Thunderbird(MailArchive):
             print(f"could not open database {self.db}: {soe}")
             raise soe
         pass
+        self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
+        self.index_db = SQLDB(self.index_db_path)
+        
+    def index_db_exists(self)->bool:
+        result = os.path.isfile(self.index_db_path) and os.path.getsize(self.index_db_path) > 0
+        return result
     
     def get_mailboxes(self):
         """
-        Create an dict of Thunderbird mailboxes.
-
+        Create a dict of Thunderbird mailboxes.
 
         """
         # Helper function to add mailbox to the dictionary
@@ -128,7 +133,7 @@ class Thunderbird(MailArchive):
                 return
             if not node["label"].endswith(".sbd"):  # It's a mailbox
                 mailbox_path = node["value"]
-                mailboxes[mailbox_path] = ThunderbirdMailbox(mailbox_path)
+                mailboxes[mailbox_path] = ThunderbirdMailbox(self,mailbox_path)
                 
         path = f"{self.profile}/Mail/Local Folders"
         extensions = {"Folder": ".sbd", "Mailbox": ""}
@@ -158,16 +163,13 @@ class Thunderbird(MailArchive):
         Raises:
             Exception: If any error occurs during database operations.
         """
-        if self.index_db_path is None:
-            self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
-        db_exist = os.path.isfile(self.index_db_path) and os.path.getsize(self.index_db_path) > 0
-        db = SQLDB(self.index_db_path)
         mailboxes=self.get_mailboxes()
         if progress_bar is None:
             progress_bar=TqdmProgressbar(total=len(mailboxes),desc="create index",unit="mailbox")      
         errors={}    
         success=Counter()
         first=True
+        total_mailboxes = len(mailboxes)
         for mailbox in mailboxes.values():
             try:        
                 mbox_lod=mailbox.get_index_lod()
@@ -175,13 +177,30 @@ class Thunderbird(MailArchive):
                 message_count=len(mbox_lod)
                 if message_count>0:
                     if first:
-                        with_create=not db_exist or force_create
-                        entity_info = db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
+                        with_create=not self.index_db_exists() or force_create
+                        entity_info = self.index_db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
                         first=False
-                    db.store(mbox_lod, entity_info, fixNone=True)
+                    self.index_db.store(mbox_lod, entity_info, fixNone=True)
                 success[mailbox.folder_path]=message_count
             except Exception as ex:
                 errors[mailbox.folder_path]=ex
+        self.show_index_report(total_mailboxes,errors,success,verbose)
+                
+    def show_index_report(self,total_mailboxes:int,errors:list,success:Counter,verbose:bool):
+        """
+        Displays a report on the indexing results of email mailboxes.
+    
+        Args:
+            total_mailboxes (int): The total number of mailboxes involved in the indexing process.
+            errors (list): A list of errors encountered during indexing, with each entry containing the path and error details.
+            success (Counter): A Counter object (from collections module) that records the number of successful indexing operations for each mailbox.
+            verbose (bool): A boolean flag that, when set to True, enables the display of detailed error and success messages.
+    
+        The function prints detailed error and success messages if verbose is True. 
+        It calculates and displays a summary of the indexing process, including the total number of errors, 
+        the total number of successful index entries, the average success rate, and the error rate.
+        The summary is printed to sys.stderr if there are any errors, and to sys.stdout otherwise.
+        """
         # Detailed error and success messages
         if verbose:
             if errors:
@@ -196,7 +215,6 @@ class Thunderbird(MailArchive):
                     success_msg += f"{path}: {count} entries\n"
                 print(success_msg)
 
-        total_mailboxes = len(mailboxes)
         total_errors = len(errors)
         total_successes = sum(success.values())
         average_success = (total_successes / len(success)) if success else 0
@@ -207,7 +225,6 @@ class Thunderbird(MailArchive):
                        f"Average messages per successful mailbox: {average_success:.2f}, "
                        f"{total_errors} mailboxes with errors ({error_rate:.2f}%).")
         print(summary_msg, file=msg_channel)
-
 
     @staticmethod
     def getProfileMap():
@@ -288,10 +305,24 @@ class ThunderbirdMailbox:
     mailbox wrapper
     """
     
-    def __init__(self,folder_path:str,debug:bool=False):
+    def __init__(self,tb:Thunderbird,folder_path:str,debug:bool=False):
         """
-        construct the Mailbox
+        Initializes a new Mailbox object associated with a specific Thunderbird email client and mailbox folder.
+    
+        Args:
+            tb (Thunderbird): An instance of the Thunderbird class representing the email client to which this mailbox belongs.
+            folder_path (str): The file system path to the mailbox folder.
+            debug (bool, optional): A flag for enabling debug mode. Default is False.
+    
+        The constructor sets the Thunderbird instance, folder path, and debug flag. It checks if the provided folder_path 
+        is a valid file and raises a ValueError if it does not exist. The method also handles the extraction of 
+        the relative folder path from the provided folder_path, especially handling the case where "Mail/Local Folders" 
+        is part of the path. Finally, it initializes the mailbox using the `mailbox.mbox` method.
+    
+        Raises:
+            ValueError: If the provided folder_path does not correspond to an existing file.
         """
+        self.tb=tb
         self.folder_path=folder_path
         self.debug=debug
         if not os.path.isfile(folder_path):
@@ -304,6 +335,8 @@ class ThunderbirdMailbox:
             # If the specific string is not found, use the entire folder_path or handle as needed
             self.relative_folder_path = folder_path
         self.mbox = mailbox.mbox(folder_path)
+        if tb.index_db_exists():
+            self.restore_toc_from_sqldb(tb.index_db)
 
     def restore_toc_from_sqldb(self, sql_db: SQLDB) -> None:
         """
@@ -459,7 +492,7 @@ class Mail(object):
             folderURI = urllib.parse.unquote(folderURI)
             sbdFolder, self.folder = Mail.toSbdFolder(folderURI)
             folderPath = self.tb.profile + sbdFolder
-            tb_mbox=ThunderbirdMailbox(folderPath,debug=self.debug)
+            tb_mbox=ThunderbirdMailbox(self.tb,folderPath,debug=self.debug)
             self.msg=tb_mbox.get_message_by_key(messageKey)
             # if lookup fails we might loop thru
             # all messages if this option is active ...
