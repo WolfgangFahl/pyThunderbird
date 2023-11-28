@@ -11,7 +11,6 @@ from ngwidgets.progress import Progressbar, TqdmProgressbar
 from thunderbird.mail import Mail, Thunderbird
 from thunderbird.tb_webserver import ThunderbirdWebserver
 
-
 class ThunderbirdMailCmd(WebserverCmd):
     """
     command line access to pyThunderbird
