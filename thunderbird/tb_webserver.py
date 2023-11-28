@@ -72,8 +72,10 @@ class ThunderbirdWebserver(InputWebserver):
         """
         if self.tb:
             tb_mbox=ThunderbirdMailbox(self.tb,path)
+            index_lod=tb_mbox.get_index_lod()
             msg_count=tb_mbox.mbox.__len__()
-            ui.html(f"{msg_count:5} ({path}")
+            self.folder_view=ui.html(f"{msg_count:5} ({path}")
+            self.folder_grid=ListOfDictsGrid(lod=index_lod)
         pass
         
     async def showMail(self, user: str, mailid: str):
