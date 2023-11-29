@@ -13,7 +13,7 @@ from nicegui import Client, app, ui
 from ngwidgets.basetest import Profiler
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
 from thunderbird.version import Version
-
+from fastapi.responses import RedirectResponse
 class ThunderbirdWebserver(InputWebserver):
     """
     webserver for Thunderbird mail access via python
@@ -36,12 +36,14 @@ class ThunderbirdWebserver(InputWebserver):
         self.bth=BackgroundTaskHandler()
         app.on_shutdown(self.bth.cleanup())
         self.tb=None
-        self.folder_view=None
-        self.folder_grid=None
         
         @ui.page("/mail/{user}/{mailid}")
         async def showMail(user: str, mailid: str):
             return await self.showMail(user, mailid)
+        
+        @ui.page("/folder/{user}/{folder_path:path}")
+        async def showFolder(user:str,folder_path:str):
+            return await self.show_folder(user,folder_path) 
         
         @ui.page("/profile/{user}/{profile_key}")
         async def show_folders(user: str, profile_key: str):
@@ -62,31 +64,40 @@ class ThunderbirdWebserver(InputWebserver):
             if user not in self.mail_archives.mail_archives:
                 ui.html(f"Unknown user {user}")
             else:
+                self.user=user
                 self.tb=self.mail_archives.mail_archives[user]
                 path=f"{self.tb.profile}/Mail/Local Folders"
                 extensions={"Folder":".sbd","Mailbox":""}
-                self.folder_selector=FileSelector(path=path,extensions=extensions,handler=self.show_folder)
+                self.folder_selector=FileSelector(path=path,extensions=extensions,handler=self.on_select_folder)
         await self.setup_content_div(show_ui)      
         
-    async def show_folder(self,path:str):
+    async def on_select_folder(self,folder_path):
+        """
+        open the folder
+        """
+        relative_path=ThunderbirdMailbox.as_relative_path(folder_path)
+        url=f"/folder/{self.user}{relative_path}"
+        return ui.open(url,new_tab=True)    
+        
+    async def show_folder(self,user,folder_path:str):
         """
         show the folder with the given path
-        """
-        def show_index():
-            index_lod=tb_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
-            msg_count=tb_mbox.mbox.__len__()
-            self.folder_view.content=(f"{msg_count:5} ({path}")
-            self.folder_grid.load_lod(lod=index_lod)
+        """       
+        def show():
+            def show_index():
+                index_lod=tb_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
+                msg_count=tb_mbox.mbox.__len__()
+                self.folder_view.content=(f"{msg_count:5} ({folder_path}")
+                self.folder_grid.load_lod(lod=index_lod)
             
-        if self.tb:
-            tb_mbox=ThunderbirdMailbox(self.tb,path)
-            if not self.folder_view:
-                self.folder_view=ui.html()
+            tb=Thunderbird.get(user)
+            tb_mbox=ThunderbirdMailbox(tb,folder_path,use_relative_path=True)
+            self.folder_view=ui.html()
             self.folder_view.content=f"Loading {tb_mbox.relative_folder_path} ..."
-            if not self.folder_grid:
-                self.folder_grid=ListOfDictsGrid()
+            self.folder_grid=ListOfDictsGrid(key_col="email_index")
             self.bth.execute_in_background(show_index)
-        pass
+            
+        await self.setup_content_div(show)
         
     async def showMail(self, user: str, mailid: str):
         """

@@ -305,13 +305,14 @@ class ThunderbirdMailbox:
     mailbox wrapper
     """
     
-    def __init__(self,tb:Thunderbird,folder_path:str,debug:bool=False):
+    def __init__(self,tb:Thunderbird,folder_path:str,use_relative_path:bool=False,debug:bool=False):
         """
         Initializes a new Mailbox object associated with a specific Thunderbird email client and mailbox folder.
     
         Args:
             tb (Thunderbird): An instance of the Thunderbird class representing the email client to which this mailbox belongs.
             folder_path (str): The file system path to the mailbox folder.
+            use_relative_path (bool): If True, use a relative path for the mailbox folder. Default is False.
             debug (bool, optional): A flag for enabling debug mode. Default is False.
     
         The constructor sets the Thunderbird instance, folder path, and debug flag. It checks if the provided folder_path 
@@ -323,20 +324,38 @@ class ThunderbirdMailbox:
             ValueError: If the provided folder_path does not correspond to an existing file.
         """
         self.tb=tb
+        # Convert relative path to absolute path if use_relative_path is True
+        if use_relative_path:
+            folder_path = os.path.join(tb.profile, "Mail/Local Folders", folder_path)
+
         self.folder_path=folder_path
         self.debug=debug
         if not os.path.isfile(folder_path):
             msg=f"{folder_path} does not exist"
             raise ValueError(msg)
-        # Check if "Mail/Local Folders" is in the folder path and split accordingly
-        if "Mail/Local Folders" in folder_path:
-            self.relative_folder_path = folder_path.split("Mail/Local Folders")[-1]
-        else:
-            # If the specific string is not found, use the entire folder_path or handle as needed
-            self.relative_folder_path = folder_path
+        self.relative_folder_path=ThunderbirdMailbox.as_relative_path(folder_path)
         self.mbox = mailbox.mbox(folder_path)
         if tb.index_db_exists():
             self.restore_toc_from_sqldb(tb.index_db)
+            
+    @staticmethod 
+    def as_relative_path(folder_path:str) -> str:
+        """
+        convert the folder_path to a relative path
+        
+        Args:
+            folder_path(str): the folder path to  convert
+            
+        Returns:
+            str: the relative path
+        """
+        # Check if "Mail/Local Folders" is in the folder path and split accordingly
+        if "Mail/Local Folders" in folder_path:
+            relative_folder_path = folder_path.split("Mail/Local Folders")[-1]
+        else:
+            # If the specific string is not found, use the entire folder_path or handle as needed
+            relative_folder_path = folder_path
+        return relative_folder_path
 
     def restore_toc_from_sqldb(self, sql_db: SQLDB) -> None:
         """
