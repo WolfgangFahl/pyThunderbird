@@ -86,15 +86,17 @@ class ThunderbirdWebserver(InputWebserver):
         def show():
             def show_index():
                 index_lod=tb_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
+                view_lod=tb_mbox.to_view_lod(index_lod, user)
                 msg_count=tb_mbox.mbox.__len__()
                 self.folder_view.content=(f"{msg_count:5} ({folder_path}")
-                self.folder_grid.load_lod(lod=index_lod)
+                self.folder_grid.load_lod(lod=view_lod)
             
             tb=Thunderbird.get(user)
             tb_mbox=ThunderbirdMailbox(tb,folder_path,use_relative_path=True)
             self.folder_view=ui.html()
             self.folder_view.content=f"Loading {tb_mbox.relative_folder_path} ..."
             self.folder_grid=ListOfDictsGrid(key_col="email_index")
+            self.folder_grid.html_columns=[1,2]
             self.bth.execute_in_background(show_index)
             
         await self.setup_content_div(show)
@@ -116,7 +118,7 @@ class ThunderbirdWebserver(InputWebserver):
 
         async def show():
             self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
-            if user in self.mail_archives:
+            if user in self.mail_archives.mail_archives:
                 self.mail_view= ui.html(f"Loading {mailid} for user {user}")
                 self.future, result_coro = self.bth.execute_in_background(get_mail)
             else:
