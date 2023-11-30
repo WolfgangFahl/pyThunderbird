@@ -685,6 +685,16 @@ where m.headerMessageID==(?)"""
         """Generate a table row for a mail part."""
         return f"<tr><th>{loop_index}:</th><td>{part.get_content_type()}</td><td>{part.get_content_charset()}</td><td><a href='...'>{part.filename}</a></td><td style='text-align:right'>{part.length}</td><tr>"
 
+    def header_as_html(self):
+        html_parts = []
+        # Start building the HTML string
+        html_parts.append("<table id='allHeaderTable'>")
+        for key, value in self.headers.items():
+            html_parts.append(self.table_line(key, value))
+        # Closing tables
+        html_parts.append("</table>")
+        return "".join(html_parts)
+
     def as_html(self):
         """Generate the HTML representation of the mail."""
         html_parts = []
@@ -701,10 +711,6 @@ where m.headerMessageID==(?)"""
         html_parts.append(self.table_line("To", self.toUrl))
         html_parts.append(self.table_line("Date", self.getHeader("Date")))
         html_parts.append(self.table_line("Subject", self.getHeader("Subject")))
-
-        # Loop for headers
-        for key, value in self.headers.items():
-            html_parts.append(self.table_line(key, value))
 
         # Loop for message parts
         html_parts.append(

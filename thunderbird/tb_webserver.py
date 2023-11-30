@@ -9,6 +9,7 @@ from ngwidgets.input_webserver import InputWebserver
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.progress import NiceguiProgressbar, Progressbar
 from ngwidgets.webserver import WebserverConfig
+from ngwidgets.widgets import HideShow
 from nicegui import Client, app, ui
 from ngwidgets.basetest import Profiler
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
@@ -113,13 +114,18 @@ class ThunderbirdWebserver(InputWebserver):
             tb = self.mail_archives.mail_archives[user]
             mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
             html_markup=mail.as_html()
-            self.mail_view.content = html_markup
+            header_markup=mail.header_as_html()
+            with self.header_section.content_div:
+                ui.html(header_markup)
+            with self.html_section.content_div:
+                self.mail_view= ui.html(html_markup)
             pass
 
         async def show():
             self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
             if user in self.mail_archives.mail_archives:
-                self.mail_view= ui.html(f"Loading {mailid} for user {user}")
+                self.html_section=HideShow(("Hide","html"))
+                self.header_section = HideShow(("Hide", "Headers"))
                 self.future, result_coro = self.bth.execute_in_background(get_mail)
             else:
                 self.mail_view= ui.html(f"unknown user {user}")    
