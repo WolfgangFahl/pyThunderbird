@@ -49,6 +49,10 @@ class ThunderbirdWebserver(InputWebserver):
         @ui.page("/profile/{user}/{profile_key}")
         async def show_folders(user: str, profile_key: str):
             return await self.show_folders(user,profile_key)
+        
+        @app.get("/part/{user}/{mailid}/{part_index:int}")
+        async def get_part(user:str,mailid:str,part_index:int):
+            return await self.get_part(user,mailid,part_index)
   
     async def show_folders(self, user: str, profile_key: str) -> None:
         """
@@ -102,6 +106,12 @@ class ThunderbirdWebserver(InputWebserver):
             
         await self.setup_content_div(show)
         
+    async def get_part(self,user:str,mailid:str,part_index:int):
+        tb = self.mail_archives.mail_archives[user]
+        mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
+        file_response=mail.part_as_fileresponse(part_index)
+        return file_response
+        
     async def showMail(self, user: str, mailid: str):
         """
         show the given mail of the given user
@@ -111,23 +121,29 @@ class ThunderbirdWebserver(InputWebserver):
             """
             get the mail
             """
-            tb = self.mail_archives.mail_archives[user]
-            mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
-            for section_name,section in self.sections.items():
-                html_markup=mail.as_html_section(section_name)
-                with section.content_div:
-                    ui.html(html_markup)
+            try:
+                tb = self.mail_archives.mail_archives[user]
+                mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
+                for section_name,section in self.sections.items():
+                    html_markup=mail.as_html_section(section_name)
+                    with section.content_div:
+                        ui.html(html_markup)
+            except Exception as ex:
+                self.handle_exception(ex, self.do_trace)
   
         async def show():
-            self.sections={}
-            section_names=["title","info","wiki","html","text","parts"]
-            self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
-            if user in self.mail_archives.mail_archives:
-                for section_name in section_names:
-                    self.sections[section_name]=HideShow((section_name,section_name))
-                self.future, result_coro = self.bth.execute_in_background(get_mail)
-            else:
-                self.mail_view= ui.html(f"unknown user {user}")    
+            try:
+                self.sections={}
+                section_names=["title","info","wiki","headers","text","parts"]
+                self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
+                if user in self.mail_archives.mail_archives:
+                    for section_name in section_names:
+                        self.sections[section_name]=HideShow((section_name,section_name))
+                    self.future, result_coro = self.bth.execute_in_background(get_mail)
+                else:
+                    self.mail_view= ui.html(f"unknown user {user}")    
+            except Exception as ex:
+                self.handle_exception(ex)        
 
         await self.setup_content_div(show)
 

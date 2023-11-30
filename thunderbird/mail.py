@@ -3,16 +3,19 @@ Created on 2020-10-24
 
 @author: wf
 """
+import io
 import mailbox
 import os
 import re
 import sqlite3
 import sys
+import tempfile
 import urllib
 from collections import Counter,OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from email.header import decode_header, make_header
+from fastapi.responses import FileResponse, StreamingResponse
 from mimetypes import guess_extension
 from pathlib import Path
 from typing import Any,Dict, List, Optional
@@ -22,7 +25,6 @@ from ftfy import fix_text
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.widgets import Link
 from ngwidgets.progress import Progressbar
-from ngwidgets.widgets import Link
 from lodstorage.sql import SQLDB
 
 from thunderbird.profiler import Profiler
@@ -681,29 +683,38 @@ where m.headerMessageID==(?)"""
         """Generate a table row with a key and value."""
         return f"<tr><th>{key}:</th><td>{value}</td><tr>"
 
-    def mail_part_row(self, loop_index, part):
+    def mail_part_row(self,loop_index:int, part):
         """Generate a table row for a mail part."""
-        return f"<tr><th>{loop_index}:</th><td>{part.get_content_type()}</td><td>{part.get_content_charset()}</td><td><a href='...'>{part.filename}</a></td><td style='text-align:right'>{part.length}</td><tr>"
-
-    def header_as_html(self):
-        html_parts = []
-        # Start building the HTML string
-        html_parts.append("<table id='allHeaderTable'>")
-        for key, value in self.headers.items():
-            html_parts.append(self.table_line(key, value))
-        # Closing tables
-        html_parts.append("</table>")
-        return "".join(html_parts)
+        # Check if loop_index is 0 to add a header
+        header = ""
+        if self.mailid:
+            mailid=self.mailid.replace(">","").replace("<","")
+        else:
+            mailid="unknown-mailid"
+        if loop_index == 0:
+            header = "<tr><th>#</th><th>Content Type</th><th>Charset</th><th>Filename</th><th style='text-align:right'>Length</th></tr>"
+        link=Link.create(f"/part/{self.user}/{mailid}/{loop_index}",part.filename)
+        # Generate the row for the current part
+        row = f"<tr><th>{loop_index+1}:</th><td>{part.get_content_type()}</td><td>{part.get_content_charset()}</td><td>{link}</a></td><td style='text-align:right'>{part.length}</td><tr>"
+        return header + row
     
     def as_html_section(self,section_name):
+        """
+        convert my content to the given html section
+        
+        Args:
+            section_name(str): the name of the section to create
+        """
         html_parts = []
         # Start building the HTML string
-        table_sections=["info","parts"]
+        table_sections=["info","parts","headers"]
         if section_name in  table_sections:
             html_parts.append(f"<table id='{section_name}Table'>")
         if section_name=="title":
             if self.mailid:
                 html_parts.append(f"<h2>{self.mailid}</h2>")
+        elif section_name=="wiki":
+            html_parts.append(self.asWikiMarkup())        
         elif section_name=="info":
             html_parts.append(self.table_line("User", self.user))
             html_parts.append(self.table_line("Folder", self.folder))
@@ -711,6 +722,10 @@ where m.headerMessageID==(?)"""
             html_parts.append(self.table_line("To", self.toUrl))
             html_parts.append(self.table_line("Date", self.getHeader("Date")))
             html_parts.append(self.table_line("Subject", self.getHeader("Subject")))
+        elif section_name=="headers":
+            for key, value in self.headers.items():
+                html_parts.append(self.table_line(key, value))
+        # Closing t    
         elif section_name=="parts":
             for index, part in enumerate(self.msgParts):
                 html_parts.append(self.mail_part_row(index, part))
@@ -722,7 +737,8 @@ where m.headerMessageID==(?)"""
         if section_name in table_sections:
             # Closing tables
             html_parts.append("</table>")
-        return "".join(html_parts)
+        markup="".join(html_parts)
+        return markup
   
     def as_html(self):
         """Generate the HTML representation of the mail."""
@@ -731,16 +747,52 @@ where m.headerMessageID==(?)"""
             html+=self.as_html_section(section_name)
         return html
 
-    def partAsFile(self, folder, partIndex):
+    def part_as_fileresponse(self, part_index: int) -> Any:
         """
-        save the given part to a file and return the filename
+        Return the specified part of a message as a FileResponse.
+
+        Args:
+            part_index (int): The index of the part to be returned.
+
+        Returns:
+            FileResponse: A FileResponse object representing the specified part.
+
+        Raises:
+            IndexError: If the part_index is out of range of the message parts.
+            ValueError: If the part content is not decodable.
+
+        Note:
+            The method assumes that self.msgParts is a list-like container holding the message parts.
+            Since FastAPI's FileResponse is designed to work with file paths, this function writes the content to a temporary file.
         """
-        # TODO: check Index
-        part = self.msgParts[partIndex]
-        f = open(f"{folder}/{part.filename}", "wb")
-        f.write(part.get_payload(decode=1))
-        f.close()
-        return part.filename
+        # Check if part_index is within the range of msgParts
+        if not 0 <= part_index < len(self.msgParts):
+            raise IndexError("part_index out of range.")
+
+        # Get the specific part from the msgParts
+        part = self.msgParts[part_index]
+
+        # Get the content of the part, decode if necessary
+        try:
+            content = part.get_payload(decode=True)
+        except:
+            raise ValueError("Unable to decode part content.")
+
+        # Write content to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file_name = temp_file.name
+            temp_file.write(content)
+
+        # Create and return a FileResponse object
+        file_response = FileResponse(path=temp_file_name, filename=part.get_filename() or "file")
+
+        # Delete the temporary file after sending the response
+        def on_send_response(response: Any) -> None:
+            os.unlink(temp_file_name)
+        
+        file_response.background = on_send_response
+        #response=StreamingResponse(io.BytesIO(content),media_type=)
+        return file_response
 
     @staticmethod
     def toSbdFolder(folderURI):
