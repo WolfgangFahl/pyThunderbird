@@ -694,40 +694,42 @@ where m.headerMessageID==(?)"""
         # Closing tables
         html_parts.append("</table>")
         return "".join(html_parts)
-
+    
+    def as_html_section(self,section_name):
+        html_parts = []
+        # Start building the HTML string
+        table_sections=["info","parts"]
+        if section_name in  table_sections:
+            html_parts.append(f"<table id='{section_name}Table'>")
+        if section_name=="title":
+            if self.mailid:
+                html_parts.append(f"<h2>{self.mailid}</h2>")
+        elif section_name=="info":
+            html_parts.append(self.table_line("User", self.user))
+            html_parts.append(self.table_line("Folder", self.folder))
+            html_parts.append(self.table_line("From", self.fromUrl))
+            html_parts.append(self.table_line("To", self.toUrl))
+            html_parts.append(self.table_line("Date", self.getHeader("Date")))
+            html_parts.append(self.table_line("Subject", self.getHeader("Subject")))
+        elif section_name=="parts":
+            for index, part in enumerate(self.msgParts):
+                html_parts.append(self.mail_part_row(index, part))
+        elif section_name=="text":
+            # Add raw message parts if necessary
+            html_parts.append(
+                f"<hr><p id='txtMsg'>{self.txtMsg}</p><hr><div id='htmlMsg'>{self.html}</div>"
+            )
+        if section_name in table_sections:
+            # Closing tables
+            html_parts.append("</table>")
+        return "".join(html_parts)
+  
     def as_html(self):
         """Generate the HTML representation of the mail."""
-        html_parts = []
-
-        # Add title if exists
-        if self.mailid:
-            html_parts.append(f"<h2>{self.mailid}</h2>")
-
-        # Start building the HTML string
-        html_parts.append("<table id='relevantHeaderTable'>")
-        html_parts.append(self.table_line("User", self.user))
-        html_parts.append(self.table_line("Folder", self.folder))
-        html_parts.append(self.table_line("From", self.fromUrl))
-        html_parts.append(self.table_line("To", self.toUrl))
-        html_parts.append(self.table_line("Date", self.getHeader("Date")))
-        html_parts.append(self.table_line("Subject", self.getHeader("Subject")))
-
-        # Loop for message parts
-        html_parts.append(
-            "<table id='messageParts' style='display:none'><tr><th>#</th><th>type</th><th>charset</th><th>name</th><th>len</th></tr>"
-        )
-        for index, part in enumerate(self.msgParts):
-            html_parts.append(self.mail_part_row(index, part))
-
-        # Closing tables
-        html_parts.append("</table>")
-
-        # Add raw message parts if necessary
-        html_parts.append(
-            f"<hr><p id='txtMsg'>{self.txtMsg}</p><hr><div id='htmlMsg'>{self.html}</div>"
-        )
-
-        return "".join(html_parts)
+        html=""
+        for section_name in ["title","info","parts","text"]:
+            html+=self.as_html_section(section_name)
+        return html
 
     def partAsFile(self, folder, partIndex):
         """

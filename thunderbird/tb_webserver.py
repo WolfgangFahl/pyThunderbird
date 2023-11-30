@@ -113,19 +113,18 @@ class ThunderbirdWebserver(InputWebserver):
             """
             tb = self.mail_archives.mail_archives[user]
             mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
-            html_markup=mail.as_html()
-            header_markup=mail.header_as_html()
-            with self.header_section.content_div:
-                ui.html(header_markup)
-            with self.html_section.content_div:
-                self.mail_view= ui.html(html_markup)
-            pass
-
+            for section_name,section in self.sections.items():
+                html_markup=mail.as_html_section(section_name)
+                with section.content_div:
+                    ui.html(html_markup)
+  
         async def show():
+            self.sections={}
+            section_names=["title","info","wiki","html","text","parts"]
             self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
             if user in self.mail_archives.mail_archives:
-                self.html_section=HideShow(("Hide","html"))
-                self.header_section = HideShow(("Hide", "Headers"))
+                for section_name in section_names:
+                    self.sections[section_name]=HideShow((section_name,section_name))
                 self.future, result_coro = self.bth.execute_in_background(get_mail)
             else:
                 self.mail_view= ui.html(f"unknown user {user}")    
