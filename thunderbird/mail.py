@@ -747,7 +747,7 @@ where m.headerMessageID==(?)"""
             html+=self.as_html_section(section_name)
         return html
 
-    def part_as_fileresponse(self, part_index: int) -> Any:
+    def part_as_fileresponse(self, part_index: int,attachments_path:str=None) -> Any:
         """
         Return the specified part of a message as a FileResponse.
 
@@ -787,10 +787,10 @@ where m.headerMessageID==(?)"""
         file_response = FileResponse(path=temp_file_name, filename=part.get_filename() or "file")
 
         # Delete the temporary file after sending the response
-        def on_send_response(response: Any) -> None:
+        async def on_send_response() -> None:
             os.unlink(temp_file_name)
-        
         file_response.background = on_send_response
+        
         #response=StreamingResponse(io.BytesIO(content),media_type=)
         return file_response
 
