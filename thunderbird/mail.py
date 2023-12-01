@@ -31,6 +31,11 @@ from thunderbird.profiler import Profiler
 from ngwidgets.progress import TqdmProgressbar
 
 
+from dataclasses import dataclass
+import os
+from datetime import datetime
+from typing import Dict
+
 @dataclass
 class MailArchive:
     """
@@ -39,35 +44,43 @@ class MailArchive:
     Attributes:
         user (str): The user to whom the mail archive belongs.
         gloda_db_path (str): The file path of the mailbox global database (sqlite).
-        profile (str, optional): the thunderbird profile directory of this mailbox.
-        db_update_time (str, optional): The last update time of the mailbox database, default is None.
+        index_db_path (str, optional): The file path of the mailbox index database (sqlite).
+        profile (str, optional): the Thunderbird profile directory of this mailbox.
+        gloda_db_update_time (str, optional): The last update time of the global database, default is None.
+        index_db_update_time (str, optional): The last update time of the index database, default is None.
     """
     user: str
     gloda_db_path: str
     index_db_path: str = None
     profile: str = None
-    db_update_time: str = None
+    gloda_db_update_time: str = None
+    index_db_update_time: str = None
 
     def __post_init__(self):
         """
-        Post-initialization processing to set the database update time.
+        Post-initialization processing to set the database update times.
         """
-        self.db_update_time = self._get_db_update_time()
+        self.gloda_db_update_time = self._get_db_update_time(self.gloda_db_path)
+        if self.index_db_path:
+            self.index_db_update_time = self._get_db_update_time(self.index_db_path)
 
-    def _get_db_update_time(self) -> str:
+    def _get_db_update_time(self, db_path: str) -> str:
         """
-        Gets the formatted last update time of the mailbox database.
+        Gets the formatted last update time of the specified database.
+
+        Args:
+            db_path (str): The file path of the database for which to get the update time.
 
         Returns:
             str: The formatted last update time.
         """
-        timestamp = os.path.getmtime(self.gloda_db_path)
+        timestamp = os.path.getmtime(db_path)
         return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-    
-    def to_dict(self,index:int=None) -> Dict[str, str]:
+
+    def to_dict(self, index: int = None) -> Dict[str, str]:
         """
-        Converts the mail archive data to a dictionary.
-        
+        Converts the mail archive data to a dictionary, including the update times for both databases.
+
         Args:
             index (int, optional): An optional index to be added to the dictionary.
 
@@ -80,8 +93,10 @@ class MailArchive:
         record = {
             'user': self.user,
             'gloda_db_path': self.gloda_db_path,
+            'index_db_path': self.index_db_path if self.index_db_path else 'Not provided',
             'profile': profile_key,
-            'updated': self.db_update_time
+            'gloda_updated': self.gloda_db_update_time,
+            'index_updated': self.index_db_update_time if self.index_db_update_time else 'Not provided'
         }
         if index is not None:
             record = {'#': index, **record}
@@ -154,13 +169,14 @@ class Thunderbird(MailArchive):
         traverse_tree(file_selector.tree_structure)
         return mailboxes  
     
-    def create_index(self, progress_bar: Optional[Progressbar] = None, force_create: bool = False, verbose: bool = True) -> None:
+   def create_or_update_index(self, progress_bar: Optional[Progressbar] = None, force_create: bool = False, verbose: bool = True) -> None:
         """
-        Create an index of emails from Thunderbird mailboxes, storing the data in an SQLite database.
+        Create or update an index of emails from Thunderbird mailboxes, storing the data in an SQLite database.
+        If an index already exists and is up-to-date, this method will update it instead of creating a new one.
 
         Args:
             progress_bar (TqdmProgressbar, optional): Progress bar to display the progress of index creation.
-            force_create (bool, optional): If True, forces the creation of a new table even if it already exists.
+            force_create (bool, optional): If True, forces the creation of a new index even if an up-to-date one exists.
             verbose (bool, optional): If True, prints detailed error and success messages; otherwise, only prints a summary.
 
         Raises:
@@ -173,21 +189,28 @@ class Thunderbird(MailArchive):
         success=Counter()
         first=True
         total_mailboxes = len(mailboxes)
-        for mailbox in mailboxes.values():
-            try:        
-                mbox_lod=mailbox.get_index_lod()
-                progress_bar.update(1)
-                message_count=len(mbox_lod)
-                if message_count>0:
-                    if first:
-                        with_create=not self.index_db_exists() or force_create
-                        entity_info = self.index_db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
-                        first=False
-                    self.index_db.store(mbox_lod, entity_info, fixNone=True)
-                success[mailbox.folder_path]=message_count
-            except Exception as ex:
-                errors[mailbox.folder_path]=ex
-        self.show_index_report(total_mailboxes,errors,success,verbose)
+        # Determine whether to create a new index or update the existing one.
+        index_up_to_date = self.index_db_exists() and self.index_db_update_time > self.gloda_db_update_time
+
+        if not index_up_to_date or force_create:
+            for mailbox in mailboxes.values():
+                try:        
+                    mbox_lod=mailbox.get_index_lod()
+                    progress_bar.update(1)
+                    message_count=len(mbox_lod)
+                    if message_count>0:
+                        if first:
+                            with_create=not self.index_db_exists() or force_create
+                            entity_info = self.index_db.createTable(mbox_lod, "mail_index",withCreate=with_create,withDrop=with_create)
+                            first=False
+                        self.index_db.store(mbox_lod, entity_info, fixNone=True)
+                    success[mailbox.folder_path]=message_count
+                except Exception as ex:
+                    errors[mailbox.folder_path]=ex
+            self.show_index_report(total_mailboxes,errors,success,verbose)
+        else:
+            if verbose:
+                print(f"Index is up-to-date for user {self.user}. No action was performed.")    
                 
     def show_index_report(self,total_mailboxes:int,errors:list,success:Counter,verbose:bool):
         """
