@@ -11,8 +11,9 @@ maintainers = [
   { name = "Wolfgang Fahl", email = "wf@bitplan.com" }
 ]
 
-description = "python Thunderbird mail access"
-version = "0.1.0"
+dynamic = ["version", "description"]
+[tool.hatch.version]
+path = "thunderbird/__init__.py"
 
 readme = "README.md"
 license = "Apache-2.0"
