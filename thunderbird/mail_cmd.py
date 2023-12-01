@@ -26,6 +26,8 @@ class ThunderbirdMailCmd(WebserverCmd):
         parser.add_argument('-ul','--user-list', default=[], nargs='+')
         parser.add_argument('-ci','--create-index',action="store_true",help="create an alternative index for the given users's Thunderbird mailarchive")
         parser.add_argument('-f', '--force', action="store_true", help="force the creation of a new index even if one already exists")
+        parser.add_argument("-v", "--verbose", action="store_true",
+                    help="show verbose infos e.g. on startup [default: %(default)s]")
         return parser
     
     def handle_args(self) -> bool:
@@ -51,7 +53,7 @@ class ThunderbirdMailCmd(WebserverCmd):
                 return False
         elif args.create_index:
             tb=Thunderbird.get(args.user)
-            tb.create_or_update_index(force_create=args.force)
+            tb.create_or_update_index(force_create=args.force,verbose=args.verbose)
         elif args.mailid:
             # Creating a Mail object with the provided arguments
             mail = Mail(user=args.user, mailid=args.mailid, debug=args.debug)
