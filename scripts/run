@@ -104,7 +104,7 @@ startServer() {
   sudo chown $USER $l_logdir
   sudo chgrp $(id -gn) $l_logdir
   export PYTHONPATH="."
-  nohup python3 $pyapp --verbose -ul $l_users > $l_logdir/$l_logfile 2>&1 &
+  nohup python3 $pyapp --verbose -ul $l_users -s > $l_logdir/$l_logfile 2>&1 &
   color_msg $green "log is at $l_logdir/$l_logfile"
 }
 
