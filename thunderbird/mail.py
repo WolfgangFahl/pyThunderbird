@@ -3,7 +3,6 @@ Created on 2020-10-24
 
 @author: wf
 """
-import io
 import mailbox
 import os
 import re
@@ -11,30 +10,24 @@ import sqlite3
 import sys
 import tempfile
 import urllib
-from collections import Counter,OrderedDict
+from collections import Counter, OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from email.header import decode_header, make_header
-from fastapi.responses import FileResponse, StreamingResponse
 from mimetypes import guess_extension
 from pathlib import Path
-from typing import Any,Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
+from fastapi.responses import FileResponse
 from ftfy import fix_text
-from ngwidgets.file_selector import FileSelector
-from ngwidgets.widgets import Link
-from ngwidgets.progress import Progressbar
 from lodstorage.sql import SQLDB
+from ngwidgets.file_selector import FileSelector
+from ngwidgets.progress import Progressbar, TqdmProgressbar
+from ngwidgets.widgets import Link
 
 from thunderbird.profiler import Profiler
-from ngwidgets.progress import TqdmProgressbar
 
-
-from dataclasses import dataclass
-import os
-from datetime import datetime
-from typing import Dict
 
 @dataclass
 class MailArchive:
@@ -61,7 +54,8 @@ class MailArchive:
         Post-initialization processing to set the database update times.
         """
         self.gloda_db_update_time = self._get_db_update_time(self.gloda_db_path)
-        if self.index_db_path:
+        self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
+        if os.path.isfile(self.index_db_path):
             self.index_db_update_time = self._get_db_update_time(self.index_db_path)
 
     def _get_db_update_time(self, db_path: str) -> str:
@@ -131,8 +125,7 @@ class Thunderbird(MailArchive):
         except sqlite3.OperationalError as soe:
             print(f"could not open database {self.db}: {soe}")
             raise soe
-        pass
-        self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
+        pass   
         self.index_db = SQLDB(self.index_db_path,check_same_thread=False)
         
     def index_db_exists(self)->bool:
