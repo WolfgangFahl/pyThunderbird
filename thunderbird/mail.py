@@ -169,7 +169,7 @@ class Thunderbird(MailArchive):
         traverse_tree(file_selector.tree_structure)
         return mailboxes  
     
-   def create_or_update_index(self, progress_bar: Optional[Progressbar] = None, force_create: bool = False, verbose: bool = True) -> None:
+    def create_or_update_index(self, progress_bar: Optional[Progressbar] = None, force_create: bool = False, verbose: bool = True) -> None:
         """
         Create or update an index of emails from Thunderbird mailboxes, storing the data in an SQLite database.
         If an index already exists and is up-to-date, this method will update it instead of creating a new one.
