@@ -109,8 +109,8 @@ class ThunderbirdWebserver(InputWebserver):
     async def get_part(self,user:str,mailid:str,part_index:int):
         tb = self.mail_archives.mail_archives[user]
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
-        file_response=mail.part_as_fileresponse(part_index)
-        return file_response
+        response=mail.part_as_fileresponse(part_index)
+        return response
         
     async def showMail(self, user: str, mailid: str):
         """
