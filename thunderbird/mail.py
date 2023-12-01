@@ -49,13 +49,23 @@ class MailArchive:
     gloda_db_update_time: str = None
     index_db_update_time: str = None
 
+    def index_db_exists(self) -> bool:
+        """Checks if the index database file exists and is not empty.
+    
+        Returns:
+            bool: True if the index database file exists and has a size greater than zero, otherwise False.
+        """
+        # Check if the index database file exists and its size is greater than zero bytes
+        result: bool = os.path.isfile(self.index_db_path) and os.path.getsize(self.index_db_path) > 0
+        return result
+    
     def __post_init__(self):
         """
         Post-initialization processing to set the database update times.
         """
         self.gloda_db_update_time = self._get_db_update_time(self.gloda_db_path)
         self.index_db_path = os.path.join(os.path.dirname(self.gloda_db_path), "index_db.sqlite")
-        if os.path.isfile(self.index_db_path):
+        if self.index_db_exists():
             self.index_db_update_time = self._get_db_update_time(self.index_db_path)
 
     def _get_db_update_time(self, db_path: str) -> str:
@@ -127,10 +137,6 @@ class Thunderbird(MailArchive):
             raise soe
         pass   
         self.index_db = SQLDB(self.index_db_path,check_same_thread=False)
-        
-    def index_db_exists(self)->bool:
-        result = os.path.isfile(self.index_db_path) and os.path.getsize(self.index_db_path) > 0
-        return result
     
     def get_mailboxes(self):
         """
