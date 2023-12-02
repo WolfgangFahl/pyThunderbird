@@ -11,13 +11,12 @@ maintainers = [
   { name = "Wolfgang Fahl", email = "wf@bitplan.com" }
 ]
 
-dynamic = ["version", "description"]
-[tool.hatch.version]
-path = "thunderbird/__init__.py"
-
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9"
+dynamic = ["version", "description"]
+[tool.hatch.version]
+path = "thunderbird/__init__.py"
 
 classifiers=[
     "Development Status :: 4 - Beta",
