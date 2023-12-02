@@ -7,7 +7,6 @@ import sys
 from argparse import ArgumentParser
 
 from ngwidgets.cmd import WebserverCmd
-from ngwidgets.progress import Progressbar, TqdmProgressbar
 from thunderbird.mail import Mail, Thunderbird
 from thunderbird.tb_webserver import ThunderbirdWebserver
 
@@ -61,7 +60,9 @@ class ThunderbirdMailCmd(WebserverCmd):
                 print(mail.msg)
                 return True
             else:
-                print("not found")
+                msg=f"mail with id {args.mailid} for user {args.user} not found"
+                print(msg,files=sys.stderr)
+                self.exit_code=1
     
 def main(argv:list=None):
     """
