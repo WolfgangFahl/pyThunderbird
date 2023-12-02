@@ -58,8 +58,9 @@ class BaseThunderbirdTest(Basetest):
 
         # Write the configuration to a .thunderbird.yaml file in the home directory
         config_path = Path.home() / ".thunderbird.yaml"
-        with open(config_path, 'w') as config_file:
-            yaml.dump(thunderbird_config, config_file)
+        if not os.path.isfile(config_path):
+            with open(config_path, 'w') as config_file:
+                yaml.dump(thunderbird_config, config_file)
 
     def is_developer(self) -> bool:
         """
