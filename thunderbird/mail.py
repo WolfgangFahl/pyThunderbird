@@ -624,23 +624,47 @@ class Mail(object):
             self.toUrl = f"<a href='{self.toMailTo}'>{toAdr}</a>"
         pass
 
-    def search(self):
+    def search(self, use_index_db: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        Search for an email by its ID in the specified Thunderbird mailbox database.
+    
+        This method allows searching either the gloda database or the index database based on the `use_index_db` parameter.
+        It returns a dictionary representing the found email or None if not found.
+    
+        Args:
+            use_index_db (bool): If True, the search will be performed in the index database. 
+                                 If False, the search will be performed in the gloda database (default).
+    
+        Returns:
+            Optional[Dict[str, Any]]: A dictionary representing the found email, or None if not found.
+        """
         if self.debug:
             print(f"Searching for mail with id {self.mailid} for user {self.user}")
-        query = """select m.*,f.* 
-from  messages m join
-folderLocations f on m.folderId=f.id
-where m.headerMessageID==(?)"""
-        params = (self.mailid,)
-        maillookup = self.tb.query(query, params)
-        # folderId=maillookup['folderId']
+    
+        if use_index_db and self.tb.index_db_exists():
+            # Query for the index database
+            query = """SELECT * FROM mail_index 
+                       WHERE message_id = ? AND folder_path = ?
+                       ORDER BY email_index"""
+            params = (f"<{self.mailid}>", self.tb.relative_folder_path)
+        else:
+            # Query for the gloda database
+            query = """SELECT m.*, f.* 
+                       FROM messages m JOIN
+                            folderLocations f ON m.folderId = f.id
+                       WHERE m.headerMessageID = (?)"""
+            params = (self.mailid,)
+    
+        db = self.tb.index_db if use_index_db and self.tb.index_db_exists() else self.tb.sqlDB
+        maillookup = db.query(query, params)
+    
         if self.debug:
             print(maillookup)
-        if len(maillookup) == 0:
-            return None
-        else:
-            mailInfo = maillookup[0]
-        return mailInfo
+    
+        # Store the result in a variable before returning
+        mail_info = maillookup[0] if maillookup else None
+        return mail_info
+
 
     def fixedPartName(self, partname: str, contentType: str, partIndex: int):
         """
