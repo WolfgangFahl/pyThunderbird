@@ -644,16 +644,15 @@ class Mail(object):
         if use_index_db and self.tb.index_db_exists():
             # Query for the index database
             query = """SELECT * FROM mail_index 
-                       WHERE message_id = ? AND folder_path = ?
+                       WHERE message_id = ?
                        ORDER BY email_index"""
-            params = (f"<{self.mailid}>", self.tb.relative_folder_path)
         else:
             # Query for the gloda database
             query = """SELECT m.*, f.* 
                        FROM messages m JOIN
                             folderLocations f ON m.folderId = f.id
                        WHERE m.headerMessageID = (?)"""
-            params = (self.mailid,)
+        params = (self.mailid,)
     
         db = self.tb.index_db if use_index_db and self.tb.index_db_exists() else self.tb.sqlDB
         maillookup = db.query(query, params)
