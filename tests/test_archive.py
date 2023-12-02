@@ -31,7 +31,7 @@ class TestArchive(BaseThunderbirdTest):
         archive = MailArchive(user, self.db_path)
         self.assertEqual(archive.user, user)
         self.assertEqual(archive.gloda_db_path, self.db_path)
-        self.assertRegex(archive.db_update_time, r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
+        self.assertRegex(archive.gloda_db_update_time, r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
         
     def test_mail_archives_creation_and_view_lod(self):
         """
