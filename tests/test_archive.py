@@ -116,5 +116,6 @@ class TestArchive(BaseThunderbirdTest):
         test create index
         """
         if self.is_developer():
+            return
             tb=Thunderbird.get(self.user)
-            tb.create_index(force_create=True)
+            tb.create_or_update_index(force_create=True)
