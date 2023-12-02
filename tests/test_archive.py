@@ -48,7 +48,7 @@ class TestArchive(BaseThunderbirdTest):
         self.assertEqual(len(view_lod), len(users))
         for item in view_lod:
             self.assertIn('user', item)
-            self.assertIn('updated', item)
+            self.assertIn('gloda_updated', item)
             
     def find_in_tree(self, node, label):
         """
