@@ -28,7 +28,6 @@ from ngwidgets.widgets import Link
 
 from thunderbird.profiler import Profiler
 
-
 @dataclass
 class MailArchive:
     """
@@ -137,6 +136,7 @@ class Thunderbird(MailArchive):
             raise soe
         pass   
         self.index_db = SQLDB(self.index_db_path,check_same_thread=False)
+        self.local_folders = f"{self.profile}/Mail/Local Folders"
     
     def get_mailboxes(self):
         """
@@ -152,9 +152,8 @@ class Thunderbird(MailArchive):
                 mailbox_path = node["value"]
                 mailboxes[mailbox_path] = ThunderbirdMailbox(self,mailbox_path)
                 
-        path = f"{self.profile}/Mail/Local Folders"
         extensions = {"Folder": ".sbd", "Mailbox": ""}
-        file_selector = FileSelector(path=path, extensions=extensions, create_ui=False)
+        file_selector = FileSelector(path=self.local_folders, extensions=extensions, create_ui=False)
 
         mailboxes = {}  # Dictionary to store ThunderbirdMailbox instances
 
@@ -529,6 +528,72 @@ ORDER BY email_index"""
         """
         self.mbox.close()
 
+@dataclass
+class MailLookup:
+    """
+    A data class representing a mail lookup entity.
+
+    Attributes:
+        message_index (int): The index of the message.
+        folder_path (str): The path to the folder containing the message.
+        message_id (str): The unique identifier of the message.
+    """
+    message_index: int
+    folder_path: str
+    message_id: str
+
+    @classmethod
+    def from_gloda_record(cls, mail_record: Dict) -> 'MailLookup':
+        """
+        Creates a MailLookup instance from a Gloda record.
+
+        Args:
+            mail_record (Dict): A dictionary representing a Gloda record.
+
+        Returns:
+            MailLookup: An instance of MailLookup.
+        """
+        message_id = mail_record["message_id"]
+        folder_uri = mail_record["folderURI"]
+        message_index = int(mail_record["messageKey"])
+        folder_uri = urllib.parse.unquote(folder_uri)
+        sbd_folder, _folder = Mail.toSbdFolder(folder_uri)
+        relative_folder=ThunderbirdMailbox.as_relative_path(sbd_folder)
+        return cls(message_index, relative_folder, message_id)
+
+    @classmethod
+    def from_index_db_record(cls, mail_record: Dict) -> 'MailLookup':
+        """
+        Creates a MailLookup instance from an index database record.
+
+        Args:
+            mail_record (Dict): A dictionary representing an index database record.
+
+        Returns:
+            MailLookup: An instance of MailLookup.
+        """
+        message_id = mail_record["message_id"]
+        message_index = mail_record["email_index"]
+        folder_path = mail_record["folder_path"]
+        return cls(message_index, folder_path, message_id)
+
+    @classmethod
+    def from_mail_record(cls, mail_record: Dict) -> 'MailLookup':
+        """
+        Creates a MailLookup instance based on the source of the mail record.
+
+        Args:
+            mail_record (Dict): A dictionary containing the mail record.
+
+        Returns:
+            MailLookup: An instance of MailLookup based on the source.
+        """
+        source = mail_record["source"]
+        if source == "gloda":
+            return cls.from_gloda_record(mail_record)
+        else:
+            return cls.from_index_db_record(mail_record)
+
 class Mail(object):
     """
     a single mail
@@ -560,15 +625,13 @@ class Mail(object):
         self.fromMailTo = None
         self.toUrl = None
         self.toMailTo = None
-        mailInfo = self.search()
-        if mailInfo is not None:
-            folderURI = mailInfo["folderURI"]
-            messageKey = int(mailInfo["messageKey"])
-            folderURI = urllib.parse.unquote(folderURI)
-            sbdFolder, self.folder = Mail.toSbdFolder(folderURI)
-            folderPath = self.tb.profile + sbdFolder
+        mail_record = self.search()
+        if mail_record is not None:
+            mail_lookup=MailLookup.from_mail_record(mail_record)
+            self.folder_path=mail_lookup.folder_path
+            folderPath = self.tb.local_folders + mail_lookup.folder_path
             tb_mbox=ThunderbirdMailbox(self.tb,folderPath,debug=self.debug)
-            self.msg=tb_mbox.get_message_by_key(messageKey)
+            self.msg=tb_mbox.get_message_by_key(mail_lookup.message_index)
             # if lookup fails we might loop thru
             # all messages if this option is active ...
             if self.msg is None and self.keySearch:
@@ -644,15 +707,17 @@ class Mail(object):
         if use_index_db and self.tb.index_db_exists():
             # Query for the index database
             query = """SELECT * FROM mail_index 
-                       WHERE message_id = ?
-                       ORDER BY email_index"""
+                       WHERE message_id = ?"""
+            source="index_db"
+            params = (f"<{self.mailid}>",)
         else:
             # Query for the gloda database
             query = """SELECT m.*, f.* 
                        FROM messages m JOIN
                             folderLocations f ON m.folderId = f.id
                        WHERE m.headerMessageID = (?)"""
-        params = (self.mailid,)
+            source="gloda"        
+            params = (self.mailid,)
     
         db = self.tb.index_db if use_index_db and self.tb.index_db_exists() else self.tb.sqlDB
         maillookup = db.query(query, params)
@@ -661,8 +726,12 @@ class Mail(object):
             print(maillookup)
     
         # Store the result in a variable before returning
-        mail_info = maillookup[0] if maillookup else None
-        return mail_info
+        mail_record = maillookup[0] if maillookup else None
+        if mail_record:
+            mail_record["source"]=source
+            if not "message_id" in mail_record:
+                mail_record["message_id"]=self.mailid
+        return mail_record
 
 
     def fixedPartName(self, partname: str, contentType: str, partIndex: int):
@@ -762,7 +831,7 @@ class Mail(object):
             html_parts.append(self.asWikiMarkup())        
         elif section_name=="info":
             html_parts.append(self.table_line("User", self.user))
-            html_parts.append(self.table_line("Folder", self.folder))
+            html_parts.append(self.table_line("Folder", self.folder_path))
             html_parts.append(self.table_line("From", self.fromUrl))
             html_parts.append(self.table_line("To", self.toUrl))
             html_parts.append(self.table_line("Date", self.getHeader("Date")))
