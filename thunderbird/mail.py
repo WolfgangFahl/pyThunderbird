@@ -591,10 +591,21 @@ ORDER BY email_index"""
         get the list of dicts for indexing
         """
         lod = []
+        # Dictionary to map timezone abbreviations to their UTC offsets
+        tzinfos = {
+            "UT": 0, "UTC": 0, "GMT": 0,  # Universal Time Coordinated
+            "EST": -5*3600, "EDT": -4*3600,  # Eastern Time
+            "CST": -6*3600, "CDT": -5*3600,  # Central Time
+            "MST": -7*3600, "MDT": -6*3600,  # Mountain Time
+            "PST": -8*3600, "PDT": -7*3600,  # Pacific Time
+            "HST": -10*3600, "AKST": -9*3600, "AKDT": -8*3600,  # Hawaii and Alaska Time
+            "CEDT": 2*3600, "EET": 2*3600, "EEST": 3*3600,  # Central European and Eastern European Time
+            "CES": 1*3600, "MET": 1*3600  # Central European Summer Time and Middle European Time
+        }
         for idx, message in enumerate(self.mbox):
             start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
             msg_date=message.get("Date")
-            parsed_date = pendulum.parse(msg_date, strict=False)
+            parsed_date = pendulum.parse(msg_date, strict=False,tzinfos=tzinfos)
             # Convert to ISO 8601 format
             msg_iso_date = parsed_date.to_iso8601_string()
             record = {
