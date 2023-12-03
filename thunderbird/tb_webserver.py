@@ -46,6 +46,10 @@ class ThunderbirdWebserver(InputWebserver):
         async def showFolder(user:str,folder_path:str):
             return await self.show_folder(user,folder_path) 
         
+        @ui.page("/profile/{user}/{profile_key}/index")
+        async def create_or_update_index(user: str, profile_key: str):
+            return await self.create_or_update_index(user,profile_key)
+        
         @ui.page("/profile/{user}/{profile_key}")
         async def show_folders(user: str, profile_key: str):
             return await self.show_folders(user,profile_key)
@@ -54,6 +58,18 @@ class ThunderbirdWebserver(InputWebserver):
         async def get_part(user:str,mailid:str,part_index:int):
             return await self.get_part(user,mailid,part_index)
   
+    async def create_or_update_index(self, user: str, profile_key: str) -> None:
+        def show_ui():
+            if user not in self.mail_archives.mail_archives:
+                ui.html(f"Unknown user {user}")
+            else:
+                self.user=user
+                self.tb=self.mail_archives.mail_archives[user]
+                progress_bar=NiceguiProgressbar(total=100,desc="updating index",unit="mailboxes")
+                self.bth.execute_in_background(self.tb.create_or_update_index,progress_bar=progress_bar)
+        
+        await self.setup_content_div(show_ui) 
+   
     async def show_folders(self, user: str, profile_key: str) -> None:
         """
         Asynchronously shows a user's folder contents based on a profile key.
@@ -71,9 +87,8 @@ class ThunderbirdWebserver(InputWebserver):
             else:
                 self.user=user
                 self.tb=self.mail_archives.mail_archives[user]
-                path=f"{self.tb.profile}/Mail/Local Folders"
                 extensions={"Folder":".sbd","Mailbox":""}
-                self.folder_selector=FileSelector(path=path,extensions=extensions,handler=self.on_select_folder)
+                self.folder_selector=FileSelector(path=self.tb.local_folders,extensions=extensions,handler=self.on_select_folder)
         await self.setup_content_div(show_ui)      
         
     async def on_select_folder(self,folder_path):
