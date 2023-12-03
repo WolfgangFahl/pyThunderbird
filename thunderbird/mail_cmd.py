@@ -51,8 +51,9 @@ class ThunderbirdMailCmd(WebserverCmd):
                 self.parser.print_help()
                 return False
         elif args.create_index:
-            tb=Thunderbird.get(args.user)
-            tb.create_or_update_index(force_create=args.force,verbose=args.verbose)
+            tb = Thunderbird.get(args.user)
+            indexing_result = tb.create_or_update_index(force_create=args.force)
+            tb.show_index_report(indexing_result, verbose=args.verbose)
         elif args.mailid:
             # Creating a Mail object with the provided arguments
             mail = Mail(user=args.user, mailid=args.mailid, debug=args.debug)
