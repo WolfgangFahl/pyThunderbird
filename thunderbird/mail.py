@@ -5,7 +5,6 @@ Created on 2020-10-24
 """
 import mailbox
 import os
-import pendulum
 import re
 import sqlite3
 import sys
@@ -24,6 +23,7 @@ from fastapi.responses import FileResponse
 from ftfy import fix_text
 from lodstorage.sql import SQLDB
 from ngwidgets.file_selector import FileSelector
+from ngwidgets.dateparser import DateParser
 from ngwidgets.progress import Progressbar, TqdmProgressbar
 from ngwidgets.widgets import Link
 
@@ -591,40 +591,35 @@ ORDER BY email_index"""
         get the list of dicts for indexing
         """
         lod = []
-        # Dictionary to map timezone abbreviations to their UTC offsets
-        tzinfos = {
-            "UT": 0, "UTC": 0, "GMT": 0,  # Universal Time Coordinated
-            "EST": -5*3600, "EDT": -4*3600,  # Eastern Time
-            "CST": -6*3600, "CDT": -5*3600,  # Central Time
-            "MST": -7*3600, "MDT": -6*3600,  # Mountain Time
-            "PST": -8*3600, "PDT": -7*3600,  # Pacific Time
-            "HST": -10*3600, "AKST": -9*3600, "AKDT": -8*3600,  # Hawaii and Alaska Time
-            "CEDT": 2*3600, "EET": 2*3600, "EEST": 3*3600,  # Central European and Eastern European Time
-            "CES": 1*3600, "MET": 1*3600  # Central European Summer Time and Middle European Time
-        }
+        date_parser=DateParser()
         for idx, message in enumerate(self.mbox):
             start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
-            msg_date=message.get("Date")
-            parsed_date = pendulum.parse(msg_date, strict=False,tzinfos=tzinfos)
-            # Convert to ISO 8601 format
-            msg_iso_date = parsed_date.to_iso8601_string()
+            error_msg = ""  # Variable to store potential error messages
+            msg_iso_date=""
+            try:
+                msg_date = message.get("Date", "")
+                if msg_date:
+                    msg_iso_date = date_parser.parse_date(msg_date)
+            except Exception as e:
+                error_msg = f"{str(e)}"
+
             record = {
                 "folder_path": self.relative_folder_path,
-                "message_id": message.get(
-                    "Message-ID", f"{self.relative_folder_path}#{idx}"
-                ),
+                "message_id": message.get("Message-ID", f"{self.relative_folder_path}#{idx}"),
                 "sender": str(message.get("From", "?")),
                 "recipient": str(message.get("To", "?")),
                 "subject": str(message.get("Subject", "?")),
                 "date": msg_date,
                 "iso_date": msg_iso_date,
-                # toc columns
                 "email_index": idx,
                 "start_pos": start_pos,
                 "stop_pos": stop_pos,
+                "error": error_msg  # Add the error message if any
             }
             lod.append(record)
+
         return lod
+
 
     def get_message_by_key(self, messageKey):
         """
