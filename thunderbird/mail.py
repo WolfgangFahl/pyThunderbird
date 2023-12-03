@@ -5,6 +5,7 @@ Created on 2020-10-24
 """
 import mailbox
 import os
+import pendulum
 import re
 import sqlite3
 import sys
@@ -42,7 +43,6 @@ class MailArchive:
         gloda_db_update_time (str, optional): The last update time of the global database, default is None.
         index_db_update_time (str, optional): The last update time of the index database, default is None.
     """
-
     user: str
     gloda_db_path: str
     index_db_path: str = None
@@ -67,24 +67,24 @@ class MailArchive:
         """
         Post-initialization processing to set the database update times.
         """
-        self.gloda_db_update_time = self._get_db_update_time(self.gloda_db_path)
+        self.gloda_db_update_time = self._get_file_update_time(self.gloda_db_path)
         self.index_db_path = os.path.join(
             os.path.dirname(self.gloda_db_path), "index_db.sqlite"
         )
         if self.index_db_exists():
-            self.index_db_update_time = self._get_db_update_time(self.index_db_path)
+            self.index_db_update_time = self._get_file_update_time(self.index_db_path)
 
-    def _get_db_update_time(self, db_path: str) -> str:
+    def _get_file_update_time(self, file_path: str) -> str:
         """
-        Gets the formatted last update time of the specified database.
+        Gets the formatted last update time of the specified file.
 
         Args:
-            db_path (str): The file path of the database for which to get the update time.
+            file_path (str): The  path of the file for which to get the update time.
 
         Returns:
             str: The formatted last update time.
         """
-        timestamp = os.path.getmtime(db_path)
+        timestamp = os.path.getmtime(file_path)
         return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
     def to_dict(self, index: int = None) -> Dict[str, str]:
@@ -109,6 +109,7 @@ class MailArchive:
             "gloda_db_path": self.gloda_db_path,
             "index_db_path": self.index_db_path if self.index_db_path else "-",
             "profile": profile_key,
+            "mailbox_updated": self.mailbox_update_time,
             "gloda_updated": self.gloda_db_update_time,
             "index_updated": self.index_db_update_time
             if self.index_db_update_time
@@ -118,13 +119,11 @@ class MailArchive:
             record = {"#": index, **record}
         return record
 
-
 @dataclass
 class IndexingResult:
     """
     result of creating the index_db for all mailboxes
     """
-
     total_mailboxes: int
     total_successes: int
     total_errors: int
@@ -250,23 +249,29 @@ class Thunderbird(MailArchive):
             total_mailboxes = len(mailboxes)
             progress_bar.total=total_mailboxes
             progress_bar.reset()
+            mailboxes_lod=[]
             for mailbox in mailboxes.values():
+                mailboxes_lod.append(mailbox.to_dict())
                 try:
                     mbox_lod = mailbox.get_index_lod()
                     progress_bar.update(1)
                     message_count = len(mbox_lod)
                     if message_count > 0:
                         with_create = not self.index_db_exists() or force_create
-                        entity_info = self.index_db.createTable(
+                        mbox_entity_info = self.index_db.createTable(
                             mbox_lod,
                             "mail_index",
                             withCreate=with_create,
                             withDrop=with_create,
                         )
-                        self.index_db.store(mbox_lod, entity_info, fixNone=True)
+                        self.index_db.store(mbox_lod, mbox_entity_info, fixNone=True)
                     success[mailbox.folder_path] = message_count
                 except Exception as ex:
                     errors[mailbox.folder_path] = ex
+            mailboxes_entity_info=self.index_db.createTable(mailboxes_lod, "mailboxes",withCreate=True,withDrop=True)
+
+            # Store the mailbox data in the 'mailboxes' table
+            self.index_db.store(mailboxes_lod, mailboxes_entity_info)
 
             total_errors = len(errors)
             total_successes = sum(success.values())
@@ -443,6 +448,8 @@ class ThunderbirdMailbox:
             folder_path = os.path.join(tb.profile, "Mail/Local Folders", folder_path)
 
         self.folder_path = folder_path
+        self.folder_update_time = self.tb._get_file_update_time(self.folder_path)
+
         self.debug = debug
         if not os.path.isfile(folder_path):
             msg = f"{folder_path} does not exist"
@@ -451,6 +458,20 @@ class ThunderbirdMailbox:
         self.mbox = mailbox.mbox(folder_path)
         if tb.index_db_exists():
             self.restore_toc_from_sqldb(tb.index_db)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts the ThunderbirdMailbox data to a dictionary for SQL database storage.
+
+        Returns:
+            Dict[str, Any]: The dictionary representation of the ThunderbirdMailbox.
+        """
+        return {
+            "folder_path": self.folder_path,
+            "relative_folder_path": self.relative_folder_path,
+            "folder_update_time": self.folder_update_time,
+            # Add any other relevant fields here
+        }
 
     @staticmethod
     def as_relative_path(folder_path: str) -> str:
@@ -572,6 +593,10 @@ ORDER BY email_index"""
         lod = []
         for idx, message in enumerate(self.mbox):
             start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
+            msg_date=message.get("Date")
+            parsed_date = pendulum.parse(msg_date, strict=False)
+            # Convert to ISO 8601 format
+            msg_iso_date = parsed_date.to_iso8601_string()
             record = {
                 "folder_path": self.relative_folder_path,
                 "message_id": message.get(
@@ -580,7 +605,8 @@ ORDER BY email_index"""
                 "sender": str(message.get("From", "?")),
                 "recipient": str(message.get("To", "?")),
                 "subject": str(message.get("Subject", "?")),
-                "date": message.get("Date"),
+                "date": msg_date,
+                "iso_date": msg_iso_date,
                 # toc columns
                 "email_index": idx,
                 "start_pos": start_pos,
