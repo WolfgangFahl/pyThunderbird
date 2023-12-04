@@ -333,16 +333,29 @@ class Thunderbird(MailArchive):
         if indexing_result.total_mailboxes>0:
             print(summary_msg, file=msg_channel)
 
-    @staticmethod
-    def getProfileMap():
+    @classmethod
+    def get_config_path(cls)->str:
+        home = str(Path.home())
+        return os.path.join(home,".thunderbird")
+    
+    @classmethod
+    def get_profiles_path(cls)->str:
+        """
+        get the profile path
+        """
+        config_path=cls.get_config_path()
+        profiles_path  = os.path.join(config_path, "thunderbird.yaml")
+        return profiles_path
+    
+    @classmethod
+    def getProfileMap(cls):
         """
         get the profile map from a thunderbird.yaml file
         """
-        home = str(Path.home())
-        profilesPath = home + "/.thunderbird.yaml"
-        with open(profilesPath, "r") as stream:
-            profileMap = yaml.safe_load(stream)
-        return profileMap
+        profiles_path=cls.get_profiles_path()
+        with open(profiles_path, "r") as stream:
+            profile_map = yaml.safe_load(stream)
+        return profile_map
 
     @staticmethod
     def get(user):
