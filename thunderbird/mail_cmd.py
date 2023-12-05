@@ -24,6 +24,7 @@ class ThunderbirdMailCmd(WebserverCmd):
         parser.add_argument('-m','--mailid',type=str,help="id of the mail to retrieve")
         parser.add_argument('-ul','--user-list', default=[], nargs='+')
         parser.add_argument('-ci','--create-index',action="store_true",help="create an alternative index for the given users's Thunderbird mailarchive")
+        parser.add_argument('-cil','--create-index-list',default=[], nargs='+',help="create an alternative index for the given list of relative mailbox paths")
         parser.add_argument('-f', '--force', action="store_true", help="force the creation of a new index even if one already exists")
         parser.add_argument("-v", "--verbose", action="store_true",
                     help="show verbose infos e.g. on startup [default: %(default)s]")
@@ -53,6 +54,10 @@ class ThunderbirdMailCmd(WebserverCmd):
         elif args.create_index:
             tb = Thunderbird.get(args.user)
             indexing_result = tb.create_or_update_index(force_create=args.force)
+            tb.show_index_report(indexing_result, verbose=args.verbose)
+        elif args.create_index_list:
+            tb = Thunderbird.get(args.user)
+            indexing_result = tb.create_or_update_index(force_create=args.force,relative_paths=args.create_index_list)
             tb.show_index_report(indexing_result, verbose=args.verbose)
         elif args.mailid:
             # Creating a Mail object with the provided arguments
