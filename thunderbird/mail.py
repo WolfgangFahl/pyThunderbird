@@ -408,7 +408,8 @@ class Thunderbird(MailArchive):
                     errors[mailbox.folder_path] = exception
                 else:
                     success[mailbox.folder_path] = message_count
-            needs_create=relative_paths is not None       
+            # if not relative paths were set we need to recreate the mailboxes table       
+            needs_create=relative_paths is None
             if relative_paths:
                 # Delete existing entries for updated mailboxes
                 for relative_path in relative_paths:
