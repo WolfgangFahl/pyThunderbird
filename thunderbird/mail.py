@@ -16,7 +16,7 @@ from datetime import datetime
 from email.header import decode_header, make_header
 from mimetypes import guess_extension
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 from fastapi.responses import FileResponse
@@ -202,6 +202,141 @@ class Thunderbird(MailArchive):
         # Traverse the tree and populate the mailboxes dictionary
         traverse_tree(file_selector.tree_structure)
         return mailboxes
+    
+    def get_mailboxes_dod_from_sqldb(self, sql_db: SQLDB) -> dict:
+        """
+        Retrieve the mailbox list of dictionaries (LoD) from the given SQL database,
+        and return it as a dictionary keyed by relative_folder_path.
+    
+        Args:
+            sql_db (SQLDB): An instance of SQLDB connected to the SQLite database.
+    
+        Returns:
+            dict: A dictionary of mailbox dictionaries, keyed by relative_folder_path.
+        """
+        sql_query = """SELECT *
+                       FROM mailboxes 
+                       ORDER BY folder_update_time DESC"""
+        try:
+            mailboxes_lod = sql_db.query(sql_query)
+            mailboxes_dict = {mb['relative_folder_path']: mb for mb in mailboxes_lod}
+            return mailboxes_dict
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e):
+                return {}
+            else:
+                raise e
+            
+    def index_mailbox(
+        self, 
+        mailbox: 'ThunderbirdMailbox', 
+        progress_bar: Progressbar, 
+        force_create: bool
+    ) -> tuple:
+        """
+        Process a single mailbox for updating the index.
+
+        Args:
+            mailbox (ThunderbirdMailbox): The mailbox to be processed.
+            progress_bar (Progressbar): Progress bar object for visual feedback.
+            force_create (bool): Flag to force creation of a new index.
+
+        Returns:
+            tuple: A tuple containing the message count and any exception occurred.
+        """
+        message_count = 0
+        exception = None
+
+        try:
+            mbox_lod = mailbox.get_index_lod()
+            message_count = len(mbox_lod)
+
+            if message_count > 0:
+                with_create = not self.index_db_exists() or force_create
+                mbox_entity_info = self.index_db.createTable(
+                    mbox_lod,
+                    "mail_index",
+                    withCreate=with_create,
+                    withDrop=with_create,
+                )
+                self.index_db.store(mbox_lod, mbox_entity_info, fixNone=True)
+
+        except Exception as ex:
+            exception = ex
+
+        progress_bar.update(1)  # Update the progress bar after processing each mailbox
+        return message_count, exception  # Single return statement
+
+    def prepare_mailboxes_for_indexing(self, force_create: bool = False, progress_bar: Optional[Progressbar] = None) -> Tuple[Dict[str, 'ThunderbirdMailbox'], Dict[str, 'ThunderbirdMailbox']]:
+        """
+        Prepare a list of mailboxes for indexing by identifying which ones need to be updated.
+    
+        This function iterates through all Thunderbird mailboxes, checking if each needs an update
+        based on the last update time in the index database. It returns two dictionaries: one containing
+        all mailboxes and another containing only the mailboxes that need updating.
+    
+        Args:
+            force_create (bool): Flag to force creation of a new index for all mailboxes.
+            progress_bar (Optional[Progressbar]): A progress bar instance for displaying the progress.
+    
+        Returns:
+            Tuple[Dict[str, ThunderbirdMailbox], Dict[str, ThunderbirdMailbox]]: A tuple containing two dictionaries.
+                The first dictionary contains all mailboxes, and the second contains only mailboxes that need updating.
+        """        
+        # Retrieve all mailboxes
+        all_mailboxes = self.get_mailboxes(progress_bar)
+    
+        # Retrieve the current state of mailboxes from the index database, if not forcing creation
+        mailboxes_update_dod = {}
+        if not force_create:
+            mailboxes_update_dod = self.get_mailboxes_dod_from_sqldb(self.index_db)
+    
+        # List to hold mailboxes that need updating
+        mailboxes_to_update = {}
+    
+        # Iterate through each mailbox to check if it needs updating
+        for _mailbox_path, mailbox in all_mailboxes.items():
+            if force_create:
+                # If force_create is True, add all mailboxes to the update list
+                mailboxes_to_update[mailbox.relative_folder_path] = mailbox
+            else:
+                # Check update times only if not forcing creation
+                mailbox_info = mailboxes_update_dod.get(mailbox.relative_folder_path, {})
+                _prev_mailbox_update_time = mailbox_info.get("folder_update_time")
+                current_folder_update_time = mailbox.folder_update_time
+    
+                # Check if the mailbox needs updating
+                if (self.index_db_update_time is None) or current_folder_update_time > self.index_db_update_time:
+                    mailboxes_to_update[mailbox.relative_folder_path] = mailbox
+    
+        return all_mailboxes,mailboxes_to_update
+    
+    def needs_index_update(self, force_create: bool) -> tuple:
+        """
+        Check if the index database needs to be updated or created.
+
+        Args:
+            force_create (bool): Flag to force creation of a new index.
+
+        Returns:
+            tuple: A tuple containing the global database update time, index database update time, and a boolean indicating if an update is needed.
+        """
+        gloda_db_update_time = (
+            datetime.fromtimestamp(os.path.getmtime(self.gloda_db_path))
+            if self.gloda_db_path else None
+        )
+        index_db_update_time = (
+            datetime.fromtimestamp(os.path.getmtime(self.index_db_path))
+            if self.index_db_exists() else None
+        )
+
+        index_up_to_date = (
+            self.index_db_exists() and 
+            index_db_update_time > gloda_db_update_time
+        )
+
+        needs_update = not index_up_to_date or force_create
+        return gloda_db_update_time, index_db_update_time, needs_update
 
     def create_or_update_index(
         self,
@@ -224,52 +359,33 @@ class Thunderbird(MailArchive):
         total_mailboxes, total_errors, total_successes, error_rate = 0, 0, 0, 0.0
         errors, success = {}, Counter()
         msg = "Indexing operation completed."
-        gloda_db_update_time = (
-            datetime.fromtimestamp(os.path.getmtime(self.gloda_db_path))
-            if self.gloda_db_path
-            else None
-        )
-        index_db_update_time = (
-            datetime.fromtimestamp(os.path.getmtime(self.index_db_path))
-            if self.index_db_exists()
-            else None
-        )
-
-        # Check if update is needed
-        index_up_to_date = (
-            self.index_db_exists()
-            and self.index_db_update_time > self.gloda_db_update_time
-        )
-        if not index_up_to_date or force_create:
+        gloda_db_update_time, index_db_update_time, needs_update = self.needs_index_update(force_create)
+        if needs_update:
             if progress_bar is None:
                 progress_bar = TqdmProgressbar(
                     total=total_mailboxes, desc="create index", unit="mailbox"
                 )
-            mailboxes = self.get_mailboxes(progress_bar)
-            total_mailboxes = len(mailboxes)
+                
+            all_mailboxes,mailboxes_to_update = self.prepare_mailboxes_for_indexing(force_create, progress_bar)
+            total_mailboxes = len(mailboxes_to_update)
             progress_bar.total=total_mailboxes
             progress_bar.reset()
-            mailboxes_lod=[]
-            for mailbox in mailboxes.values():
-                mailboxes_lod.append(mailbox.to_dict())
-                try:
-                    mbox_lod = mailbox.get_index_lod()
-                    progress_bar.update(1)
-                    message_count = len(mbox_lod)
-                    if message_count > 0:
-                        with_create = not self.index_db_exists() or force_create
-                        mbox_entity_info = self.index_db.createTable(
-                            mbox_lod,
-                            "mail_index",
-                            withCreate=with_create,
-                            withDrop=with_create,
-                        )
-                        self.index_db.store(mbox_lod, mbox_entity_info, fixNone=True)
-                    success[mailbox.folder_path] = message_count
-                except Exception as ex:
-                    errors[mailbox.folder_path] = ex
-            mailboxes_entity_info=self.index_db.createTable(mailboxes_lod, "mailboxes",withCreate=True,withDrop=True)
+            
+            needs_create = force_create or not self.index_db_exists()
+            for mailbox in mailboxes_to_update.values():
+                message_count, exception = self.index_mailbox(
+                    mailbox,progress_bar, needs_create
+                )
+                if message_count > 0 and needs_create:
+                    needs_create = False  # Subsequent updates will not recreate the table
 
+                if exception:
+                    mailbox.error=exception
+                    errors[mailbox.folder_path] = exception
+                else:
+                    success[mailbox.folder_path] = message_count
+            mailboxes_lod = [mailbox.to_dict() for mailbox in all_mailboxes.values()]
+            mailboxes_entity_info=self.index_db.createTable(mailboxes_lod, "mailboxes",withCreate=True,withDrop=True)
             # Store the mailbox data in the 'mailboxes' table
             self.index_db.store(mailboxes_lod, mailboxes_entity_info)
 
@@ -279,7 +395,10 @@ class Thunderbird(MailArchive):
                 (total_errors / total_mailboxes) * 100 if total_mailboxes > 0 else 0
             )
         else:
-            msg = f"Index is up-to-date for user {self.user}. No action was performed."
+            msg = f"""✅ {self.user} update times:
+Index db: {index_db_update_time} 
+   Gloda: {gloda_db_update_time}
+"""
 
         return IndexingResult(
             total_mailboxes,
@@ -464,13 +583,14 @@ class ThunderbirdMailbox:
         self.folder_update_time = self.tb._get_file_update_time(self.folder_path)
 
         self.debug = debug
+        self.error=""
         if not os.path.isfile(folder_path):
             msg = f"{folder_path} does not exist"
             raise ValueError(msg)
         self.relative_folder_path = ThunderbirdMailbox.as_relative_path(folder_path)
         self.mbox = mailbox.mbox(folder_path)
         if tb.index_db_exists():
-            self.restore_toc_from_sqldb(tb.index_db)
+            self.restore_toc_from_sqldb(tb.index_db)    
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -479,11 +599,13 @@ class ThunderbirdMailbox:
         Returns:
             Dict[str, Any]: The dictionary representation of the ThunderbirdMailbox.
         """
+        message_count = len(self.mbox)  # Assuming self.mbox is a mailbox object
         return {
             "folder_path": self.folder_path,
             "relative_folder_path": self.relative_folder_path,
             "folder_update_time": self.folder_update_time,
-            # Add any other relevant fields here
+            "message_count": message_count,
+            "error": str(self.error)
         }
 
     @staticmethod
