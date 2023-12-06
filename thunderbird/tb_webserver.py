@@ -196,7 +196,7 @@ class ThunderbirdWebserver(InputWebserver):
         async def show():
             try:
                 self.sections={}
-                section_names=["title","info","wiki","headers","text","parts"]
+                section_names=["title","info","wiki","headers","text","html","parts"]
                 self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
                 if user in self.mail_archives.mail_archives:
                     for section_name in section_names:

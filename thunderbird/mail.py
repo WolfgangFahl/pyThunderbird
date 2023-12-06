@@ -1203,7 +1203,11 @@ class Mail(object):
         elif section_name == "text":
             # Add raw message parts if necessary
             html_parts.append(
-                f"<hr><p id='txtMsg'>{self.txtMsg}</p><hr><div id='htmlMsg'>{self.html}</div>"
+                f"<hr><p id='txtMsg'>{self.txtMsg}</p>"
+            )
+        elif section_name == "html":
+            html_parts.append(
+                f"<hr><div id='htmlMsg'>{self.html}</div>"
             )
         if section_name in table_sections:
             # Closing tables
@@ -1214,7 +1218,7 @@ class Mail(object):
     def as_html(self):
         """Generate the HTML representation of the mail."""
         html = ""
-        for section_name in ["title", "info", "parts", "text"]:
+        for section_name in ["title", "info", "parts", "text","html"]:
             html += self.as_html_section(section_name)
         return html
 
