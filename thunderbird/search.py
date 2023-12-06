@@ -79,6 +79,7 @@ class MailSearch:
             "Subject": "subject",
             "From": "sender",
             "To": "recipient",
+            "Message-ID:": "message_id"
         }
 
         for field, value in search_criteria.items():

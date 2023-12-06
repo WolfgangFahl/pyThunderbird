@@ -3,6 +3,7 @@ Created on 2020-10-24
 
 @author: wf
 """
+import html
 import mailbox
 import os
 import re
@@ -702,43 +703,46 @@ ORDER BY email_index"""
         return index_lod
 
     @classmethod
-    def to_view_lod(
-        cls, index_lod: List[Dict[str, Any]], user: str
-    ) -> List[Dict[str, Any]]:
+    def to_view_lod(cls, index_lod: List[Dict[str, Any]], user: str) -> List[Dict[str, Any]]:
         """
         Converts a list of index record dictionaries into a format suitable for display in an ag-grid.
         It renames and repositions the 'email_index' key, removes 'start_pos' and 'stop_pos', and converts
         'message_id' to a hyperlink using a custom Link.create() function.
-
+    
         Args:
             index_lod (List[Dict[str, Any]]): A list of dictionaries representing the index records.
             user (str): The user identifier to be used in constructing URLs for hyperlinks.
-
+    
         Returns:
             List[Dict[str, Any]]: The list of modified index record dictionaries.
         """
         for record in index_lod:
+            # HTML-encode potentially unsafe fields
+            for key in record:
+                if isinstance(record[key], str):
+                    record[key] = html.escape(record[key])
+    
             # Renaming and moving 'email_index' to the first position as '#'
-            # shifting numbers by one
             record["#"] = record.pop("email_index") + 1
-
+    
             # Removing 'start_pos','stop_pos' and 'folder_path'
             record.pop("start_pos", None)
             record.pop("stop_pos", None)
             record.pop("folder_path", None)
-
+    
             # Converting 'message_id' to a hyperlink
             mail_id = record["message_id"]
             url = f"/mail/{user}/{mail_id}"
             record["message_id"] = Link.create(url, text=mail_id)
-
+    
         # Reordering keys to ensure '#' is first
         sorted_index_lod = [
             {k: record[k] for k in sorted(record, key=lambda x: x != "#")}
             for record in index_lod
         ]
-
+    
         return sorted_index_lod
+
 
     def restore_toc_from_lod(self, index_lod: list) -> None:
         """
