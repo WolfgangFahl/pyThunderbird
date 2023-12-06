@@ -577,6 +577,7 @@ class MailArchives:
             profile = record["profile"]
             profile_url = f"/profile/{user}/{profile}"
             record["profile"] = Link.create(profile_url, profile)
+            record["search"] = Link.create(f"{profile_url}/search", "search")
             record["index"] = Link.create(f"{profile_url}/index", "index")
             # add restful call to update index
             lod.append(record)
@@ -700,8 +701,9 @@ ORDER BY email_index"""
         index_lod = sql_db.query(sql_query, folder_path_param)
         return index_lod
 
+    @classmethod
     def to_view_lod(
-        self, index_lod: List[Dict[str, Any]], user: str
+        cls, index_lod: List[Dict[str, Any]], user: str
     ) -> List[Dict[str, Any]]:
         """
         Converts a list of index record dictionaries into a format suitable for display in an ag-grid.
