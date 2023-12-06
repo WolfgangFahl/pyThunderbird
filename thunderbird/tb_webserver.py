@@ -12,6 +12,7 @@ from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
 from nicegui import Client, app, ui
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
+from thunderbird.search import MailSearch
 from thunderbird.version import Version
 
 class ThunderbirdWebserver(InputWebserver):
@@ -45,6 +46,10 @@ class ThunderbirdWebserver(InputWebserver):
         async def showFolder(user:str,folder_path:str):
             return await self.show_folder(user,folder_path) 
         
+        @ui.page("/profile/{user}/{profile_key}/search")
+        async def show_search(user: str, profile_key: str):
+            return await self.show_search(user,profile_key)
+        
         @ui.page("/profile/{user}/{profile_key}/index")
         async def create_or_update_index(user: str, profile_key: str):
             return await self.create_or_update_index(user,profile_key)
@@ -68,7 +73,34 @@ class ThunderbirdWebserver(InputWebserver):
             self.mailboxes_grid.load_lod(all_mailboxes)
         except Exception as ex:
             self.handle_exception(ex, self.do_trace)
-             
+            
+    async def show_search(self, user: str, profile_key: str):
+        """
+        Shows a search interface for Thunderbird mails.
+
+        Args:
+            user (str): Username for identifying the user profile.
+            profile_key (str): Thunderbird profile key.
+        """
+
+        def show_ui():
+            if user not in self.mail_archives.mail_archives:
+                ui.html(f"Unknown user {user}")
+                return
+    
+            # Initialize the Thunderbird instance for the given user
+            self.tb = Thunderbird.get(user)
+    
+            # Define a search dictionary with default values or criteria
+            search_dict = {
+                "Subject": "",
+                "From": "",
+                "To": "",
+            } 
+            # Initialize MailSearch with the Thunderbird instance and the search dictionary
+            self.mail_search = MailSearch(self, self.tb, search_dict)
+        
+        await self.setup_content_div(show_ui)
         
     async def create_or_update_index(self, user: str, profile_key: str) -> None:
         def show_ui():
@@ -121,7 +153,7 @@ class ThunderbirdWebserver(InputWebserver):
         def show():
             def show_index():
                 index_lod=tb_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
-                view_lod=tb_mbox.to_view_lod(index_lod, user)
+                view_lod=ThunderbirdMailbox.to_view_lod(index_lod, user)
                 msg_count=tb_mbox.mbox.__len__()
                 self.folder_view.content=(f"{msg_count:5} ({folder_path}")
                 self.folder_grid.load_lod(lod=view_lod)

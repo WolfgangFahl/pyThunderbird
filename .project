@@ -3,6 +3,7 @@
 	<name>pyThunderbird</name>
 	<comment></comment>
 	<projects>
+		<project>nicegui_widgets</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
