@@ -26,6 +26,9 @@ class TestMailSearch(BaseThunderbirdTest):
             expected_count=1
             
         tb=Thunderbird.get(user)
+        if not self.is_developer() and not tb.index_db_exists():
+            # we need to create an index database
+            tb.create_or_update_index()
         search_dict = {
             "Subject": f"{subject}",
             "From": "",
