@@ -947,7 +947,17 @@ class Mail(object):
                 self.extract_message()
             tb_mbox.close()
 
-    def extract_message(self):
+    def extract_message(self, lenient: bool = False) -> None:
+        """
+        Extracts the message body and headers from the email message.
+
+        This method decodes each part of the email message, handling different content types and charsets. It appends
+        the decoded text to the message object's text and HTML attributes.
+
+        Args:
+            lenient (bool): If True, the method will not raise an exception for decoding errors, and will instead skip the problematic parts.
+
+        """
         for key in self.msg.keys():
             # https://stackoverflow.com/a/21715870/1497139
             self.headers[key] = str(make_header(decode_header(self.msg.get(key))))
@@ -973,13 +983,48 @@ class Mail(object):
             )
             if contentType == "text/plain" or contentType == "text/html":
                 part_str = part.get_payload(decode=1)
-                rawPart = part_str.decode(charset)
-                if contentType == "text/plain":
-                    self.txtMsg += rawPart
-                elif contentType == "text/html":
-                    self.html += rawPart
+                rawPart = self.try_decode(part_str, charset, lenient)
+                if rawPart is not None:
+                    if contentType == "text/plain":
+                        self.txtMsg += rawPart
+                    elif contentType == "text/html":
+                        self.html += rawPart
             pass
         self.handle_headers()
+        
+    def try_decode(self, byte_str: bytes, charset: str, lenient: bool) -> str:
+        """
+        Attempts to decode a byte string using multiple charsets.
+
+        Tries to decode the byte string using a series of common charsets, returning the decoded string upon success.
+        If all attempts fail, it either raises a UnicodeDecodeError or returns None, based on the lenient flag.
+
+        Args:
+            byte_str (bytes): The byte string to be decoded.
+            charset (str): The initial charset to attempt decoding with.
+            lenient (bool): If True, suppresses UnicodeDecodeError and returns None for undecodable byte strings.
+
+        Returns:
+            str: The decoded string, or None if lenient is True and decoding fails.
+
+        Raises:
+            UnicodeDecodeError: If decoding fails and lenient is False.
+
+        """
+        charsets_to_try = [charset, "utf-8", "iso-8859-1", "ascii"]
+        # Ensure no duplicate charsets in the list
+        unique_charsets = list(dict.fromkeys(charsets_to_try))
+
+        for encoding in unique_charsets:
+            try:
+                decoded = byte_str.decode(encoding)
+                return decoded
+            except UnicodeDecodeError:
+                continue
+
+        if not lenient:
+            raise UnicodeDecodeError(f"Failed to decode with charsets: {unique_charsets}")
+        return None
 
     def handle_headers(self):
         # sort the headers
