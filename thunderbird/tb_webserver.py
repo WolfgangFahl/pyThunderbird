@@ -96,6 +96,7 @@ class ThunderbirdWebserver(InputWebserver):
                 "Subject": "",
                 "From": "",
                 "To": "",
+                "Message-ID:": "",
             } 
             # Initialize MailSearch with the Thunderbird instance and the search dictionary
             self.mail_search = MailSearch(self, self.tb, search_dict)
