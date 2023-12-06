@@ -766,6 +766,16 @@ ORDER BY email_index"""
 
             # Update the TOC with the new positions
             self.mbox._toc[idx] = (start_pos, stop_pos)
+            
+    def decode_subject(self, subject)->str:
+        # Decode the subject
+        decoded_bytes = decode_header(subject)
+        # Concatenate the decoded parts
+        decoded_subject = ''.join(
+            str(text, charset or 'utf-8') if isinstance(text, bytes) else text
+            for text, charset in decoded_bytes
+        )
+        return decoded_subject
 
     def get_index_lod(self):
         """
@@ -777,7 +787,12 @@ ORDER BY email_index"""
             start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
             error_msg = ""  # Variable to store potential error messages
             msg_iso_date=""
+            decoded_subject="?"
+            msg_date=""
             try:
+                # Decode the subject
+                decoded_subject = self.decode_subject(message.get("Subject", "?"))
+
                 msg_date = message.get("Date", "")
                 if msg_date:
                     msg_iso_date = date_parser.parse_date(msg_date)
@@ -789,7 +804,7 @@ ORDER BY email_index"""
                 "message_id": message.get("Message-ID", f"{self.relative_folder_path}#{idx}"),
                 "sender": str(message.get("From", "?")),
                 "recipient": str(message.get("To", "?")),
-                "subject": str(message.get("Subject", "?")),
+                "subject": decoded_subject,
                 "date": msg_date,
                 "iso_date": msg_iso_date,
                 "email_index": idx,
