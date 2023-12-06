@@ -109,7 +109,6 @@ class MailArchive:
             "gloda_db_path": self.gloda_db_path,
             "index_db_path": self.index_db_path if self.index_db_path else "-",
             "profile": profile_key,
-            "mailbox_updated": self.mailbox_update_time,
             "gloda_updated": self.gloda_db_update_time,
             "index_updated": self.index_db_update_time
             if self.index_db_update_time
@@ -167,7 +166,7 @@ class Thunderbird(MailArchive):
         self.index_db = SQLDB(self.index_db_path, check_same_thread=False)
         self.local_folders = f"{self.profile}/Mail/Local Folders"
 
-    def get_mailboxes(self, progress_bar=None):
+    def get_mailboxes(self, progress_bar=None, restore_toc:bool=False):
         """
         Create a dict of Thunderbird mailboxes.
 
@@ -179,7 +178,7 @@ class Thunderbird(MailArchive):
                 return
             if not node["label"].endswith(".sbd"):  # It's a mailbox
                 mailbox_path = node["value"]
-                mailboxes[mailbox_path] = ThunderbirdMailbox(self, mailbox_path)
+                mailboxes[mailbox_path] = ThunderbirdMailbox(self, mailbox_path,restore_toc=restore_toc)
                 if progress_bar:
                     progress_bar.update(1)
 
@@ -499,6 +498,9 @@ Index db: {index_db_update_time}
         get the profile path
         """
         config_path=cls.get_config_path()
+        # Ensure the config_path exists
+        os.makedirs(config_path, exist_ok=True)
+        
         profiles_path  = os.path.join(config_path, "thunderbird.yaml")
         return profiles_path
     
@@ -591,6 +593,7 @@ class ThunderbirdMailbox:
         tb: Thunderbird,
         folder_path: str,
         use_relative_path: bool = False,
+        restore_toc: bool=True,
         debug: bool = False,
     ):
         """
@@ -600,6 +603,7 @@ class ThunderbirdMailbox:
             tb (Thunderbird): An instance of the Thunderbird class representing the email client to which this mailbox belongs.
             folder_path (str): The file system path to the mailbox folder.
             use_relative_path (bool): If True, use a relative path for the mailbox folder. Default is False.
+            restore_toc(bool): If True restore the table of contents
             debug (bool, optional): A flag for enabling debug mode. Default is False.
 
         The constructor sets the Thunderbird instance, folder path, and debug flag. It checks if the provided folder_path
@@ -625,7 +629,7 @@ class ThunderbirdMailbox:
             raise ValueError(msg)
         self.relative_folder_path = ThunderbirdMailbox.as_relative_path(folder_path)
         self.mbox = mailbox.mbox(folder_path)
-        if tb.index_db_exists():
+        if restore_toc and tb.index_db_exists():
             self.restore_toc_from_sqldb(tb.index_db)    
 
     def to_dict(self) -> Dict[str, Any]:
