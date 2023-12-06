@@ -177,39 +177,49 @@ class ThunderbirdWebserver(InputWebserver):
         
     async def showMail(self, user: str, mailid: str):
         """
-        show the given mail of the given user
+        Show the given mail of the given user.
         """
         
         def get_mail():
             """
-            get the mail
+            Get the mail.
             """
             try:
                 tb = self.mail_archives.mail_archives[user]
                 mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
-                for section_name,section in self.sections.items():
-                    html_markup=mail.as_html_section(section_name)
-                    section.content_div.content=html_markup
-                    section._set_show_content(True)
+                for section_name, section in self.sections.items():
+                    html_markup = mail.as_html_section(section_name)
+                    section.content_div.content = html_markup
+                    section.update()
             except Exception as ex:
                 self.handle_exception(ex, self.do_trace)
-  
+    
         async def show():
             try:
-                self.sections={}
-                section_names=["title","info","wiki","headers","text","html","parts"]
-                self.progress_bar = NiceguiProgressbar(100,"load mail","steps") 
+                self.sections = {}
+                section_names = ["title", "info", "wiki", "headers", "text", "html", "parts"]
+                visible_sections = {"title", "info", "text", "html"}  # Sections to be initially visible
+                self.progress_bar = NiceguiProgressbar(100, "load mail", "steps")
                 if user in self.mail_archives.mail_archives:
                     for section_name in section_names:
-                        self.sections[section_name]=HideShow((section_name,section_name))
+                        # Set initial visibility based on the section name
+                        show_content = section_name in visible_sections
+                        self.sections[section_name] = HideShow(
+                            (section_name, section_name), 
+                            show_content=show_content,
+                            lazy_init=True
+                        )
                     for section_name in section_names:
-                        self.sections[section_name].content_div=ui.html()
-                    self.future, _result_coro = self.bth.execute_in_background(get_mail)
+                        self.sections[section_name].set_content(ui.html())
+                    # Execute get_mail in the background
+                    # self.future, _result_coro = await self.bth.execute_in_background(get_mail)
+          
+                    get_mail()  # Removed background execution for simplicity
                 else:
-                    self.mail_view= ui.html(f"unknown user {user}")    
+                    self.mail_view = ui.html(f"unknown user {user}")
             except Exception as ex:
-                self.handle_exception(ex)        
-
+                self.handle_exception(ex)
+    
         await self.setup_content_div(show)
 
     def configure_run(self):
