@@ -188,8 +188,8 @@ class ThunderbirdWebserver(InputWebserver):
                 mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
                 for section_name,section in self.sections.items():
                     html_markup=mail.as_html_section(section_name)
-                    with section.content_div:
-                        ui.html(html_markup)
+                    section.content_div.content=html_markup
+                    section._set_show_content(True)
             except Exception as ex:
                 self.handle_exception(ex, self.do_trace)
   
@@ -201,7 +201,9 @@ class ThunderbirdWebserver(InputWebserver):
                 if user in self.mail_archives.mail_archives:
                     for section_name in section_names:
                         self.sections[section_name]=HideShow((section_name,section_name))
-                    self.future, result_coro = self.bth.execute_in_background(get_mail)
+                    for section_name in section_names:
+                        self.sections[section_name].content_div=ui.html()
+                    self.future, _result_coro = self.bth.execute_in_background(get_mail)
                 else:
                     self.mail_view= ui.html(f"unknown user {user}")    
             except Exception as ex:
