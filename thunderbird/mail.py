@@ -1199,12 +1199,13 @@ class Mail(object):
         # Start building the HTML string
         table_sections = ["info", "parts", "headers"]
         if section_name in table_sections:
+            html_parts.append("<hr>")
             html_parts.append(f"<table id='{section_name}Table'>")
         if section_name == "title":
             if self.mailid:
                 html_parts.append(f"<h2>{self.mailid}</h2>")
         elif section_name == "wiki":
-            html_parts.append(self.asWikiMarkup())
+            html_parts.append(f"<hr><pre>{self.asWikiMarkup()}</pre>")
         elif section_name == "info":
             html_parts.append(self.table_line("User", self.user))
             html_parts.append(self.table_line("Folder", self.folder_path))
