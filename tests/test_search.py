@@ -22,12 +22,13 @@ class TestMailSearch(BaseThunderbirdTest):
             expected_count=9000
         else:
             user=self.mock_user
-            subject="Segeln"
+            subject="Wikidata Digest"
             expected_count=1
             
         tb=Thunderbird.get(user)
-        if not self.is_developer() and not tb.index_db_exists():
-            # we need to create an index database
+        # if we are in a public CI environment
+        # we need to create an index database
+        if self.inPublicCI() and not tb.index_db_exists():
             tb.create_or_update_index()
         search_dict = {
             "Subject": f"{subject}",

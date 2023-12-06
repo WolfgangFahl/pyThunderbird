@@ -6,7 +6,6 @@ Refactored on 2023-11-24
 import getpass
 import os
 import socket
-from pathlib import Path
 
 import yaml
 from lodstorage.sql import SQLDB
