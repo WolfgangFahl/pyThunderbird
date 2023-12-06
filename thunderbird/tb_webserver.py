@@ -7,14 +7,13 @@ from ngwidgets.background import BackgroundTaskHandler
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.input_webserver import InputWebserver
 from ngwidgets.lod_grid import ListOfDictsGrid
-from ngwidgets.progress import NiceguiProgressbar, Progressbar
+from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
 from nicegui import Client, app, ui
-from ngwidgets.basetest import Profiler
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
 from thunderbird.version import Version
-from fastapi.responses import RedirectResponse
+
 class ThunderbirdWebserver(InputWebserver):
     """
     webserver for Thunderbird mail access via python
@@ -32,7 +31,7 @@ class ThunderbirdWebserver(InputWebserver):
         return config
 
     def __init__(self):
-        """Constructs all the necessary attributes for the WebServer object."""
+        """Constructor """
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
         self.bth=BackgroundTaskHandler()
         app.on_shutdown(self.bth.cleanup())
@@ -58,15 +57,31 @@ class ThunderbirdWebserver(InputWebserver):
         async def get_part(user:str,mailid:str,part_index:int):
             return await self.get_part(user,mailid,part_index)
   
+    def prepare_indexing(self,tb,progress_bar):
+        """
+        prepare indexing of mailboxes
+        """
+        # Prepare mailboxes for indexing
+        try:
+            all_mailboxes, mailboxes_to_update = tb.prepare_mailboxes_for_indexing(progress_bar=progress_bar)
+            update_lod = [mb.to_dict() for mb in mailboxes_to_update.values()]
+            self.mailboxes_grid.load_lod(all_mailboxes)
+        except Exception as ex:
+            self.handle_exception(ex, self.do_trace)
+             
+        
     async def create_or_update_index(self, user: str, profile_key: str) -> None:
         def show_ui():
             if user not in self.mail_archives.mail_archives:
                 ui.html(f"Unknown user {user}")
             else:
                 self.user=user
-                self.tb=self.mail_archives.mail_archives[user]
+                tb=self.mail_archives.mail_archives[user]
                 progress_bar=NiceguiProgressbar(total=100,desc="updating index",unit="mailboxes")
-                self.bth.execute_in_background(self.tb.create_or_update_index,progress_bar=progress_bar)
+                with ui.element():
+                    # Create an instance of ListOfDictsGrid to display mailboxes
+                    self.mailboxes_grid=ListOfDictsGrid(lod=[])
+                self.bth.execute_in_background(self.prepare_indexing,tb,progress_bar=progress_bar)
         
         await self.setup_content_div(show_ui) 
    
@@ -166,7 +181,15 @@ class ThunderbirdWebserver(InputWebserver):
         """
         configure me e.g. the allowed urls
         """
-        self.mail_archives=MailArchives(self.args.user_list)
+        # If args.user_list is None or empty, use users from the profiles
+        # see https://github.com/WolfgangFahl/pyThunderbird/issues/19
+        if not self.args.user_list:
+            profile_map = Thunderbird.getProfileMap()
+            user_list = list(profile_map.keys())
+        else:
+            user_list = self.args.user_list
+
+        self.mail_archives = MailArchives(user_list)
         
     def setup_content(self):
         """
