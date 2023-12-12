@@ -68,7 +68,8 @@ class BaseThunderbirdTest(Basetest):
         Returns:
             bool: True if on the developer's machine, False otherwise.
         """
-        return self.user == "wf" and self.host == "fix.bitplan.com"
+        dev = self.user == "wf" and self.host == "fix.bitplan.com"
+        return dev
 
     def mock_mail(self,user: str=None):
         """
