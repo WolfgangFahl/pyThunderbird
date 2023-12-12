@@ -203,6 +203,97 @@ class Thunderbird(MailArchive):
         traverse_tree(file_selector.tree_structure)
         return mailboxes
     
+    def get_mailboxes_by_relative_path(self):
+        """
+        """
+        mailboxes_dict=self.get_mailboxes()
+        mailboxes_by_relative_path={}
+        for mailbox in mailboxes_dict.values():
+            mailboxes_by_relative_path[mailbox.relative_path]=mailbox
+        return mailboxes_by_relative_path    
+
+    def to_view_lod(self, fs_mailboxes_dict: Dict[str, 'ThunderbirdMailbox'], db_mailboxes_dict: Dict[str, Any],force_count: bool = False) -> List[Dict[str, Any]]:
+        """
+        Merges mailbox information from the filesystem and SQL database into a unified view.
+    
+        Args:
+            fs_mailboxes_dict (Dict[str, ThunderbirdMailbox]): Mailboxes from the filesystem.
+            db_mailboxes_dict (Dict[str, Any]): Mailboxes from the SQL database.
+            force_count(bool): if True get count from mailboxes (costly!)
+        Returns:
+            List[Dict[str, Any]]: A unified list of dictionaries, each representing a mailbox.
+        """
+        merged_view_lod = []
+        all_keys = set(fs_mailboxes_dict.keys()) | set(db_mailboxes_dict.keys())
+
+        # Function to safely parse ISO Zulu format
+        def safe_parse_iso_zulu(iso_zulu_str):
+            try:
+                return datetime.strptime(iso_zulu_str, "%Y-%m-%dT%H:%M:%SZ")
+            except (TypeError, ValueError):
+                return datetime.min  # Use the earliest possible date for comparison
+
+        # Create a list of tuples (key, latest update time)
+        sortable_items = []
+        for key in all_keys:
+            fs_mailbox = fs_mailboxes_dict.get(key)
+            db_mailbox = db_mailboxes_dict.get(key)
+            fs_update_time = safe_parse_iso_zulu(fs_mailbox.folder_update_time) if fs_mailbox else datetime.min
+            db_update_time = safe_parse_iso_zulu(db_mailbox['folder_update_time']) if db_mailbox else datetime.min
+            latest_update_time = max(fs_update_time, db_update_time)
+
+            latest_update_time = max(fs_update_time, db_update_time)
+            sortable_items.append((key, latest_update_time))
+    
+        # Sort the items based on the latest update time
+        sorted_items = sorted(sortable_items, key=lambda x: x[1], reverse=True)
+    
+        for index, (key, _) in enumerate(sorted_items):
+            fs_mailbox = fs_mailboxes_dict.get(key)
+            db_mailbox = db_mailboxes_dict.get(key)
+    
+            state_char = "🔄" if fs_mailbox and db_mailbox else "📂" if fs_mailbox else "💾"
+            if db_mailbox and 'message_count' in db_mailbox:
+                count_str = str(db_mailbox['message_count'])
+            elif fs_mailbox and force_count:
+                count_str = str(len(fs_mailbox.mbox)) if hasattr(fs_mailbox, 'mbox') else '⚠️❓'
+            else:
+                count_str = '❓'
+            relative_folder_path=fs_mailbox.relative_folder_path if fs_mailbox else db_mailbox["relative_folder_path"]
+            folder_url = f"/folder/{self.user}/{relative_folder_path}" if fs_mailbox else '#'
+            error_str= fs_mailbox.error if fs_mailbox else db_mailbox.get('Error', '❓')
+            update_time=fs_mailbox.folder_update_time if fs_mailbox else db_mailbox['folder_update_time']
+            
+            mailbox_record = {
+                '#': index,
+                'State': state_char,
+                'Folder': Link.create(folder_url, relative_folder_path),
+                'Updated': update_time,
+                'Count': count_str,
+                'Error': error_str
+            }
+            merged_view_lod.append(mailbox_record)
+    
+        return merged_view_lod
+    
+    def get_synched_mailbox_view_lod(self):
+        """
+        Fetches and synchronizes mailbox data from the filesystem and SQL database and returns a unified view.
+
+        Returns:
+            List[Dict[str, Any]]: A unified list of dictionaries, each representing a mailbox.
+        """
+        # Retrieve mailbox data from the filesystem
+        fs_mboxes_dict = self.get_mailboxes()  # Filesystem mailboxes
+
+        # Retrieve mailbox data from the SQL database
+        db_mboxes_dict = self.get_mailboxes_dod_from_sqldb(self.index_db)  # Database mailboxes
+
+        # Merge and format the data for view
+        mboxes_view_lod = self.to_view_lod(fs_mboxes_dict, db_mboxes_dict)
+
+        return mboxes_view_lod
+    
     def get_mailboxes_dod_from_sqldb(self, sql_db: SQLDB) -> dict:
         """
         Retrieve the mailbox list of dictionaries (LoD) from the given SQL database,
@@ -578,6 +669,7 @@ class MailArchives:
             profile = record["profile"]
             profile_url = f"/profile/{user}/{profile}"
             record["profile"] = Link.create(profile_url, profile)
+            record["mailboxes"] = Link.create(f"{profile_url}/mailboxes", "mailboxes")
             record["search"] = Link.create(f"{profile_url}/search", "search")
             record["index"] = Link.create(f"{profile_url}/index", "index")
             # add restful call to update index

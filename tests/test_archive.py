@@ -111,6 +111,31 @@ class TestArchive(BaseThunderbirdTest):
             msg_count=tb_mbox.mbox.__len__()
             print(msg_count)
             
+    def test_get_synched_mailbox_view_lod(self):
+        """
+        Test the get_synched_mailbox_view_lod method with actual data for a developer.
+        """
+        if self.is_developer():
+            user = self.user
+            tb = Thunderbird.get(user)
+
+            # Call the get_synched_mailbox_view_lod method
+            mboxes_view_lod = tb.get_synched_mailbox_view_lod()
+
+            # Basic verification to check if the output is in the expected format
+            assert isinstance(mboxes_view_lod, list), "Expected mboxes_view_lod to be a list"
+            assert all(isinstance(record, dict) for record in mboxes_view_lod), "Each item in mboxes_view_lod should be a dictionary"
+
+            
+            debug=self.debug
+            debug=True
+            # if debug is active show a few records
+            if debug:
+                limit=10
+                count=len(mboxes_view_lod)
+                for index,record in enumerate(mboxes_view_lod[:limit]):
+                    print(f"{index}/{count}:{record}")
+                    
     def test_create_index(self):
         """
         test create index

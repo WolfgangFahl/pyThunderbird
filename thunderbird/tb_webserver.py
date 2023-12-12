@@ -46,6 +46,10 @@ class ThunderbirdWebserver(InputWebserver):
         async def showFolder(user:str,folder_path:str):
             return await self.show_folder(user,folder_path) 
         
+        @ui.page("/profile/{user}/{profile_key}/mailboxes")
+        async def show_mailboxes(user: str, profile_key: str):
+            return await self.show_mailboxes(user,profile_key)
+        
         @ui.page("/profile/{user}/{profile_key}/search")
         async def show_search(user: str, profile_key: str):
             return await self.show_search(user,profile_key)
@@ -73,6 +77,31 @@ class ThunderbirdWebserver(InputWebserver):
             self.mailboxes_grid.load_lod(all_mailboxes)
         except Exception as ex:
             self.handle_exception(ex, self.do_trace)
+            
+    async def show_mailboxes(self, user: str, profile_key: str):
+        """
+        Shows a mailboxes for a Thunderbird user profile
+
+        Args:
+            user (str): Username for identifying the user profile.
+            profile_key (str): Thunderbird profile key.
+        """
+
+        def show_ui():
+            try:
+                if user not in self.mail_archives.mail_archives:
+                    ui.html(f"Unknown user {user}")
+                    return
+        
+                # Initialize the Thunderbird instance for the given user
+                self.tb = Thunderbird.get(user)
+                # get all mailboxes
+                mboxes_view_lod=self.tb.get_synched_mailbox_view_lod()
+                self.mboxes_view=ListOfDictsGrid(lod=mboxes_view_lod)
+            except Exception as ex:
+                self.handle_exception(ex, self.do_trace)    
+                        
+        await self.setup_content_div(show_ui)
             
     async def show_search(self, user: str, profile_key: str):
         """
