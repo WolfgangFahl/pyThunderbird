@@ -233,34 +233,39 @@ class Thunderbird(MailArchive):
         """
         merged_view_lod = []
         all_keys = set(fs_mailboxes_dict.keys()) | set(db_mailboxes_dict.keys())
+        unknown='❓'
+        disk_symbol = '💾'  # Symbol representing the filesystem
+        database_symbol = '🗄️'  # Symbol representing the database
 
         for key in all_keys:
             fs_mailbox = fs_mailboxes_dict.get(key)
             db_mailbox = db_mailboxes_dict.get(key)
     
-            state_char = "🔄" if fs_mailbox and db_mailbox else "📂" if fs_mailbox else "💾"
+            state_char = "🔄" if fs_mailbox and db_mailbox else disk_symbol if fs_mailbox else database_symbol
             if db_mailbox and 'message_count' in db_mailbox:
                 count_str = str(db_mailbox['message_count'])
             elif fs_mailbox and force_count:
                 count_str = str(len(fs_mailbox.mbox)) if hasattr(fs_mailbox, 'mbox') else '⚠️❓'
             else:
-                count_str = '❓'
+                count_str = unknown
             relative_folder_path=fs_mailbox.relative_folder_path if fs_mailbox else db_mailbox["relative_folder_path"]
             folder_url = f"/folder/{self.user}/{relative_folder_path}" if fs_mailbox else '#'
-            error_str= fs_mailbox.error if fs_mailbox else db_mailbox.get('Error', '❓')
-            update_time=fs_mailbox.folder_update_time if fs_mailbox else db_mailbox['folder_update_time']
+            error_str= fs_mailbox.error if fs_mailbox else db_mailbox.get('Error', unknown)
+            fs_update_time=fs_mailbox.folder_update_time if fs_mailbox else unknown 
+            db_update_time=db_mailbox['folder_update_time'] if db_mailbox else unknown
             
             mailbox_record = {
                 'State': state_char,
                 'Folder': Link.create(folder_url, relative_folder_path),
-                'Updated': update_time,
+                f'{disk_symbol}-Updated': fs_update_time,
+                f'{database_symbol}-Updated': db_update_time,
                 'Count': count_str,
                 'Error': error_str
             }
             merged_view_lod.append(mailbox_record)
         
         # Sorting by 'Updated' field
-        merged_view_lod.sort(key=lambda x: x['Updated'], reverse=True)
+        merged_view_lod.sort(key=lambda x: x[f'{disk_symbol}-Updated'], reverse=True)
 
         # Assigning index after sorting
         for index, record in enumerate(merged_view_lod):
