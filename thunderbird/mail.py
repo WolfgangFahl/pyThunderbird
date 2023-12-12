@@ -203,13 +203,21 @@ class Thunderbird(MailArchive):
         traverse_tree(file_selector.tree_structure)
         return mailboxes
     
-    def get_mailboxes_by_relative_path(self):
+    def get_mailboxes_by_relative_path(self) -> Dict[str, 'ThunderbirdMailbox']:
         """
+        Retrieves all mailboxes and returns a dictionary keyed by their relative folder paths.
+
+        This method fetches all Thunderbird mailboxes and organizes them in a dictionary where the keys are the
+        relative paths of the mailboxes, providing a quick way to access a mailbox by its relative path.
+
+        Returns:
+            Dict[str, ThunderbirdMailbox]: A dictionary where the keys are relative folder paths and the values are
+                                           ThunderbirdMailbox objects representing the corresponding mailboxes.
         """
         mailboxes_dict=self.get_mailboxes()
         mailboxes_by_relative_path={}
         for mailbox in mailboxes_dict.values():
-            mailboxes_by_relative_path[mailbox.relative_path]=mailbox
+            mailboxes_by_relative_path[mailbox.relative_folder_path]=mailbox
         return mailboxes_by_relative_path    
 
     def to_view_lod(self, fs_mailboxes_dict: Dict[str, 'ThunderbirdMailbox'], db_mailboxes_dict: Dict[str, Any],force_count: bool = False) -> List[Dict[str, Any]]:
@@ -226,29 +234,7 @@ class Thunderbird(MailArchive):
         merged_view_lod = []
         all_keys = set(fs_mailboxes_dict.keys()) | set(db_mailboxes_dict.keys())
 
-        # Function to safely parse ISO Zulu format
-        def safe_parse_iso_zulu(iso_zulu_str):
-            try:
-                return datetime.strptime(iso_zulu_str, "%Y-%m-%dT%H:%M:%SZ")
-            except (TypeError, ValueError):
-                return datetime.min  # Use the earliest possible date for comparison
-
-        # Create a list of tuples (key, latest update time)
-        sortable_items = []
         for key in all_keys:
-            fs_mailbox = fs_mailboxes_dict.get(key)
-            db_mailbox = db_mailboxes_dict.get(key)
-            fs_update_time = safe_parse_iso_zulu(fs_mailbox.folder_update_time) if fs_mailbox else datetime.min
-            db_update_time = safe_parse_iso_zulu(db_mailbox['folder_update_time']) if db_mailbox else datetime.min
-            latest_update_time = max(fs_update_time, db_update_time)
-
-            latest_update_time = max(fs_update_time, db_update_time)
-            sortable_items.append((key, latest_update_time))
-    
-        # Sort the items based on the latest update time
-        sorted_items = sorted(sortable_items, key=lambda x: x[1], reverse=True)
-    
-        for index, (key, _) in enumerate(sorted_items):
             fs_mailbox = fs_mailboxes_dict.get(key)
             db_mailbox = db_mailboxes_dict.get(key)
     
@@ -265,7 +251,6 @@ class Thunderbird(MailArchive):
             update_time=fs_mailbox.folder_update_time if fs_mailbox else db_mailbox['folder_update_time']
             
             mailbox_record = {
-                '#': index,
                 'State': state_char,
                 'Folder': Link.create(folder_url, relative_folder_path),
                 'Updated': update_time,
@@ -273,6 +258,13 @@ class Thunderbird(MailArchive):
                 'Error': error_str
             }
             merged_view_lod.append(mailbox_record)
+        
+        # Sorting by 'Updated' field
+        merged_view_lod.sort(key=lambda x: x['Updated'], reverse=True)
+
+        # Assigning index after sorting
+        for index, record in enumerate(merged_view_lod):
+            merged_view_lod[index] = {'#': index, **record}  
     
         return merged_view_lod
     
@@ -284,7 +276,7 @@ class Thunderbird(MailArchive):
             List[Dict[str, Any]]: A unified list of dictionaries, each representing a mailbox.
         """
         # Retrieve mailbox data from the filesystem
-        fs_mboxes_dict = self.get_mailboxes()  # Filesystem mailboxes
+        fs_mboxes_dict = self.get_mailboxes_by_relative_path()
 
         # Retrieve mailbox data from the SQL database
         db_mboxes_dict = self.get_mailboxes_dod_from_sqldb(self.index_db)  # Database mailboxes
