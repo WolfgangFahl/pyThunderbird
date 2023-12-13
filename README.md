@@ -14,6 +14,16 @@ Demo
 ============
 [Demo](http://pythunderbird-demo.bitplan.com/)
 
+**Home page**
+![Home page](https://github.com/zauberzeug/nicegui/raw/main/assets/1336221/11c946bf-7502-46ad-97a1-25d4514811fe.png)
+
+**Search**
+![Search](https://github.com/zauberzeug/nicegui/raw/main/assets/1336221/194ba50e-4110-41b2-99e0-f4495600903f.png)
+
+**Mail display**
+![Mail display](https://github.com/zauberzeug/nicegui/raw/main/assets/1336221/5df06a16-c3c5-45ad-9dde-2b571a39de04.png)
+
+
 Installation
 ============
 ```bash
