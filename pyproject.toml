@@ -63,3 +63,4 @@ packages = [
 
 [project.scripts]
 tbmail = "thunderbird.mail_cmd:main"
+ghget = "thunderbird.github:main"

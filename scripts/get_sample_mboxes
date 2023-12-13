@@ -1,0 +1,35 @@
+#!/bin/bash
+# Usage: ./script.sh <profile_directory>
+
+# Function to display usage information
+show_usage() {
+    echo "Usage: $0 <profile_directory>"
+}
+
+# Check if profile directory parameter is provided
+if [ -z "$1" ]; then
+    echo "Error: Profile directory not specified."
+    show_usage
+    exit 1
+fi
+
+# Check if the ghget command is available
+if ! which ghget > /dev/null; then
+    echo "The 'ghget' command is not available."
+    echo "Please install it with 'pip install pyThunderbird'."
+    exit 1
+fi
+
+PROFILE_DIR=$1
+
+# Read URLs from here document
+read -r -d '' URLS << EOM
+https://github.com/catmin/inetsim/blob/master/data/pop3/sample.mbox
+https://github.com/hoffmangroup/segway-mailing-list-archives/blob/master/segway-announce.mbox
+https://github.com/hoffmangroup/segway-mailing-list-archives/blob/master/segway-users.mbox
+EOM
+
+# Call the Python script for each URL
+for url in $URLS; do
+    ghget "$PROFILE_DIR" "$url"
+done
