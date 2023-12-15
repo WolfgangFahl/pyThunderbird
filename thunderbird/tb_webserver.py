@@ -216,10 +216,17 @@ class ThunderbirdWebserver(InputWebserver):
             try:
                 tb = self.mail_archives.mail_archives[user]
                 mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
-                for section_name, section in self.sections.items():
-                    html_markup = mail.as_html_section(section_name)
-                    section.content_div.content = html_markup
-                    section.update()
+                # check mail has a message
+                if not mail.msg:
+                    title_section=self.sections["title"]
+                    mailid_str=mail.normalize_mailid(mailid)
+                    html_markup=f"""<span style="color: red;">Mail with id {mailid_str} not found</span>"""
+                    title_section.content_div.content=html_markup
+                else:
+                    for section_name, section in self.sections.items():
+                        html_markup = mail.as_html_section(section_name)
+                        section.content_div.content = html_markup
+                        section.update()
             except Exception as ex:
                 self.handle_exception(ex, self.do_trace)
     
