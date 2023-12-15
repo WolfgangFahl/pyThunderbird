@@ -1032,7 +1032,7 @@ class Mail(object):
             self.tb = Thunderbird.get(user)
         else:
             self.tb = tb
-        mailid = re.sub(r"\<(.*)\>", r"\1", mailid)
+        mailid = self.normalize_mailid(mailid)
         self.mailid = mailid
         self.keySearch = keySearch
         self.rawMsg = None
@@ -1051,11 +1051,37 @@ class Mail(object):
             self.msg = tb_mbox.get_message_by_key(mail_lookup.message_index)
             # if lookup fails we might loop thru
             # all messages if this option is active ...
-            if self.msg is None and self.keySearch:
+            found=self.check_mailid()    
+            if not found and self.keySearch:
                 self.msg = tb_mbox.search_message_by_key(self.mailid)
             if self.msg is not None:
-                self.extract_message()
+                if self.check_mailid():
+                    self.extract_message()
+                else:
+                    self.msg=None
             tb_mbox.close()
+            
+    def check_mailid(self)->bool:
+        """
+        check the mailid
+        """
+        found=False
+        self.extract_headers()
+        id_header="Message-ID"
+        if id_header in self.headers:
+            header_id=self.headers[id_header]
+            header_id= self.normalize_mailid(header_id)
+            found=header_id==self.mailid
+        return found
+            
+    def normalize_mailid(self,mail_id:str)->str:
+        mail_id= re.sub(r"\<(.*)\>", r"\1", mail_id)
+        return mail_id
+    
+    def extract_headers(self):
+        for key in self.msg.keys():
+            # https://stackoverflow.com/a/21715870/1497139
+            self.headers[key] = str(make_header(decode_header(self.msg.get(key))))
 
     def extract_message(self, lenient: bool = False) -> None:
         """
@@ -1068,9 +1094,7 @@ class Mail(object):
             lenient (bool): If True, the method will not raise an exception for decoding errors, and will instead skip the problematic parts.
 
         """
-        for key in self.msg.keys():
-            # https://stackoverflow.com/a/21715870/1497139
-            self.headers[key] = str(make_header(decode_header(self.msg.get(key))))
+        self.extract_headers()
         self.txtMsg = ""
         self.html = ""
         # https://stackoverflow.com/a/43833186/1497139
@@ -1302,6 +1326,7 @@ class Mail(object):
             html_parts.append(self.table_line("To", self.toUrl))
             html_parts.append(self.table_line("Date", self.getHeader("Date")))
             html_parts.append(self.table_line("Subject", self.getHeader("Subject")))
+            html_parts.append(self.table_line("Message-ID", self.getHeader("Message-ID")))
         elif section_name == "headers":
             for key, value in self.headers.items():
                 html_parts.append(self.table_line(key, value))
