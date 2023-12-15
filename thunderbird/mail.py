@@ -249,7 +249,7 @@ class Thunderbird(MailArchive):
             else:
                 count_str = unknown
             relative_folder_path=fs_mailbox.relative_folder_path if fs_mailbox else db_mailbox["relative_folder_path"]
-            folder_url = f"/folder/{self.user}/{relative_folder_path}" if fs_mailbox else '#'
+            folder_url = f"/folder/{self.user}{relative_folder_path}" if fs_mailbox else '#'
             error_str= fs_mailbox.error if fs_mailbox else db_mailbox.get('Error', unknown)
             fs_update_time=fs_mailbox.folder_update_time if fs_mailbox else unknown 
             db_update_time=db_mailbox['folder_update_time'] if db_mailbox else unknown
@@ -1075,13 +1075,22 @@ class Mail(object):
         return found
             
     def normalize_mailid(self,mail_id:str)->str:
+        """
+        remove the surrounding <> of the given mail_id
+        """
         mail_id= re.sub(r"\<(.*)\>", r"\1", mail_id)
         return mail_id
     
     def extract_headers(self):
-        for key in self.msg.keys():
-            # https://stackoverflow.com/a/21715870/1497139
-            self.headers[key] = str(make_header(decode_header(self.msg.get(key))))
+        """
+        update the headers
+        """
+        if not self.msg:
+            self.headers = {}
+        else:
+            for key in self.msg.keys():
+                # https://stackoverflow.com/a/21715870/1497139
+                self.headers[key] = str(make_header(decode_header(self.msg.get(key))))
 
     def extract_message(self, lenient: bool = False) -> None:
         """
@@ -1094,7 +1103,8 @@ class Mail(object):
             lenient (bool): If True, the method will not raise an exception for decoding errors, and will instead skip the problematic parts.
 
         """
-        self.extract_headers()
+        if len(self.headers)==0:
+            self.extract_headers()
         self.txtMsg = ""
         self.html = ""
         # https://stackoverflow.com/a/43833186/1497139
