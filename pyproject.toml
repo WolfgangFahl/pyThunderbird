@@ -10,6 +10,8 @@ authors = [
 maintainers = [
   { name = "Wolfgang Fahl", email = "wf@bitplan.com" }
 ]
+keywords = "nicegui, Thunderbird"
+
 dependencies= [
 	"pylodstorage>=0.4.11",
 	"PyYAML>=6.0",
