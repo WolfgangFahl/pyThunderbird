@@ -829,9 +829,7 @@ ORDER BY email_index"""
             {k: record[k] for k in sorted(record, key=lambda x: x != "#")}
             for record in index_lod
         ]
-    
         return sorted_index_lod
-
 
     def restore_toc_from_lod(self, index_lod: list) -> None:
         """
@@ -871,20 +869,14 @@ ORDER BY email_index"""
         get the list of dicts for indexing
         """
         lod = []
-        date_parser=DateParser()
         for idx, message in enumerate(self.mbox):
             start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
             error_msg = ""  # Variable to store potential error messages
-            msg_iso_date=""
             decoded_subject="?"
-            msg_date=""
+            msg_date,msg_iso_date,error_msg = Mail.get_iso_date(message)
             try:
                 # Decode the subject
                 decoded_subject = self.decode_subject(message.get("Subject", "?"))
-
-                msg_date = message.get("Date", "")
-                if msg_date:
-                    msg_iso_date = date_parser.parse_date(msg_date)
             except Exception as e:
                 error_msg = f"{str(e)}"
 
@@ -941,7 +933,6 @@ ORDER BY email_index"""
         close the mailbox
         """
         self.mbox.close()
-
 
 @dataclass
 class MailLookup:
@@ -1073,6 +1064,29 @@ class Mail(object):
             header_id= self.normalize_mailid(header_id)
             found=header_id==self.mailid
         return found
+    
+    @classmethod
+    def get_iso_date(cls,msg) -> Tuple[str,Optional[str], Optional[str]]:
+        """
+        Extracts and formats the date from the email header in ISO format.
+
+        Args:
+            msg (Mail): The mail object from which to extract the date.
+
+        Returns:
+            Tuple[str, Optional[str], Optional[str]]: A tuple containing the msg_date, the formatted date in ISO format, 
+            and an error message if the date cannot be extracted or parsed, otherwise None.
+        """
+        date_parser = DateParser()
+        msg_date = msg.get("Date", "")
+        iso_date = "?"
+        error_msg = None
+        if msg_date:
+            try:
+                iso_date = date_parser.parse_date(msg_date)
+            except Exception as e:
+                error_msg = f"Error parsing date '{msg_date}': {e}"
+        return msg_date,iso_date, error_msg
             
     def normalize_mailid(self,mail_id:str)->str:
         """
@@ -1081,6 +1095,20 @@ class Mail(object):
         mail_id= re.sub(r"\<(.*)\>", r"\1", mail_id)
         return mail_id
     
+    def as_html_error_msg(self) -> str:
+        """
+        Generates an HTML formatted error message for the Mail instance.
+
+        This method should be called when a Mail object is requested but not found.
+        It uses the `normalize_mailid` method to format the mail ID in the error message.
+
+        Returns:
+            str: An HTML string representing the error message.
+        """
+        normalized_mailid = self.normalize_mailid(self.mailid)
+        html_error_msg = f"<span style='color: red;'>Mail with id {normalized_mailid} not found</span>"
+        return html_error_msg
+        
     def extract_headers(self):
         """
         update the headers
@@ -1260,7 +1288,7 @@ class Mail(object):
         text = f"{self.user}/{self.mailid}"
         return text
 
-    def getHeader(self, headerName: str):
+    def getHeader(self,headerName: str):
         """
         get the header with the given name
 
@@ -1283,12 +1311,16 @@ class Mail(object):
         Returns:
             str: a http://wiki.bitplan.com/index.php/WikiSon notation
         """
+        if len(self.headers)==0:
+            self.extract_headers()
+        _msg_date,iso_date, _error_msg = Mail.get_iso_date(self.msg)
         wikison = f"""{{{{mail
 |user={self.user}
 |id={self.mailid}
 |from={self.getHeader('From')}
 |to={self.getHeader('To')}
 |subject={self.getHeader('Subject')}
+|date={iso_date}
 }}}}"""
         return wikison
 

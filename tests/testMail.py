@@ -89,6 +89,7 @@ class TestMail(BaseThunderbirdTest):
 |from=wikidata-request@lists.wikimedia.org
 |to=wikidata@lists.wikimedia.org
 |subject=Wikidata Digest, Vol 107, Issue 2
+|date=2020-10-03T12:00:03Z
 }}}}"""
         if self.debug:
             print(wikison)
