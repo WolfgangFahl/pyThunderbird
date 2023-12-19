@@ -44,9 +44,12 @@ class TestAPI(WebserverTest):
         Test various /mail/{user}/{mailid}.wiki endpoints.
         """
         test_cases = [
-            ("wf","0c2e98c4-1bc7-9ce9-f80e-07fbed60e554@apache.org", 200, "{{mail"),
             ("invalid_user","invalid_id", 404, "Mail with id"),
         ]
+        if not self.inPublicCI():
+            test_cases.append(      
+                ("wf","0c2e98c4-1bc7-9ce9-f80e-07fbed60e554@apache.org", 200, "{{mail"),
+            )
         for user, mail_id,expected_status, substring in test_cases:
             path = f"/mail/{user}/{mail_id}.wiki"
             response = self.get_response(path, expected_status)
