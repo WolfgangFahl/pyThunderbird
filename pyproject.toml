@@ -4,6 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 description = "python based access to Thunderbird mail with nicegui frontend" 
+keywords = [ "nicegui", "thunderbird", mail]
+
 name = "pyThunderbird"
 authors = [
   { name = "Wolfgang Fahl", email = "wf@bitplan.com" }
