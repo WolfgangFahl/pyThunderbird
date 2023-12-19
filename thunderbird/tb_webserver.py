@@ -14,6 +14,7 @@ from nicegui import Client, app, ui
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
 from thunderbird.search import MailSearch
 from thunderbird.version import Version
+from fastapi import FastAPI, HTTPException, Response
 
 class ThunderbirdWebserver(InputWebserver):
     """
@@ -38,6 +39,16 @@ class ThunderbirdWebserver(InputWebserver):
         app.on_shutdown(self.bth.cleanup())
         self.tb=None
         
+        @app.get("/mail/{user}/{mailid}.wiki")
+        def get_mail_wikimarkup(user: str, mailid: str):
+            mail=self.get_mail(user, mailid)
+            if not mail.msg:  # Assuming mail objects have a 'msg' attribute to check if the message exists
+                html_markup=mail.as_html_error_msg()
+       
+                raise HTTPException(status_code=404, detail=html_markup)
+            response=Response(content=mail.asWikiMarkup(), media_type="text/plain")
+            return response
+
         @ui.page("/mail/{user}/{mailid}")
         async def showMail(user: str, mailid: str):
             return await self.showMail(user, mailid)
@@ -203,6 +214,13 @@ class ThunderbirdWebserver(InputWebserver):
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
         response=mail.part_as_fileresponse(part_index)
         return response
+    
+    def get_mail(self, user: str, mailid: str):
+        if user not in self.mail_archives.mail_archives:
+            raise HTTPException(status_code=404, detail=f"User '{user}' not found")
+        tb = self.mail_archives.mail_archives[user]
+        mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
+        return mail
         
     async def showMail(self, user: str, mailid: str):
         """
@@ -214,13 +232,11 @@ class ThunderbirdWebserver(InputWebserver):
             Get the mail.
             """
             try:
-                tb = self.mail_archives.mail_archives[user]
-                mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
+                mail=self.get_mail(user, mailid)
                 # check mail has a message
                 if not mail.msg:
                     title_section=self.sections["title"]
-                    mailid_str=mail.normalize_mailid(mailid)
-                    html_markup=f"""<span style="color: red;">Mail with id {mailid_str} not found</span>"""
+                    html_markup=mail.as_html_error_msg()
                     title_section.content_div.content=html_markup
                 else:
                     for section_name, section in self.sections.items():
