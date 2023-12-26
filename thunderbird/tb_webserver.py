@@ -6,7 +6,7 @@ Created on 2023-11-23
 from ngwidgets.background import BackgroundTaskHandler
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.input_webserver import InputWebserver
-from ngwidgets.lod_grid import ListOfDictsGrid
+from ngwidgets.lod_grid import ListOfDictsGrid, GridConfig
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
@@ -203,7 +203,8 @@ class ThunderbirdWebserver(InputWebserver):
             tb_mbox=ThunderbirdMailbox(tb,folder_path,use_relative_path=True)
             self.folder_view=ui.html()
             self.folder_view.content=f"Loading {tb_mbox.relative_folder_path} ..."
-            self.folder_grid=ListOfDictsGrid(key_col="email_index")
+            grid_config=GridConfig(key_col="email_index")
+            self.folder_grid=ListOfDictsGrid(config=grid_config)
             self.folder_grid.html_columns=[1,2]
             self.bth.execute_in_background(show_index)
             
