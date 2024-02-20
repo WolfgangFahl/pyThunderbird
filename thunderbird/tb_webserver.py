@@ -101,9 +101,8 @@ class ThunderbirdWebserver(InputWebserver):
             )
 
         @app.get("/part/{user}/{mailid}/{part_index:int}")
-        async def get_part(client: Client,user: str, mailid: str, part_index: int):
-            return await self.page(
-                client,ThunderbirdSolution.get_part,
+        async def get_part(user: str, mailid: str, part_index: int):
+            return await self.get_part(
                 user, mailid, part_index
             )
 
@@ -141,6 +140,12 @@ class ThunderbirdWebserver(InputWebserver):
         tb = self.mail_archives.mail_archives[user]
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
         return mail
+    
+    async def get_part(self, user: str, mailid: str, part_index: int):
+        tb = self.mail_archives.mail_archives[user]
+        mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
+        response = mail.part_as_fileresponse(part_index)
+        return response
 
 
 class ThunderbirdSolution(InputWebSolution):
@@ -292,11 +297,6 @@ class ThunderbirdSolution(InputWebSolution):
 
         await self.setup_content_div(show)
 
-    async def get_part(self, user: str, mailid: str, part_index: int):
-        tb = self.mail_archives.mail_archives[user]
-        mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
-        response = mail.part_as_fileresponse(part_index)
-        return response
 
     async def showMail(self, user: str, mailid: str):
         """
