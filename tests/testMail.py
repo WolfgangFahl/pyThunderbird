@@ -19,7 +19,7 @@ class TestMail(BaseThunderbirdTest):
         """
         test creating a mailbox file
         """
-        mboxFile = os.path.join(self.temp_dir,"testMailbox")
+        mboxFile = os.path.join(self.temp_dir, "testMailbox")
         mbox = mailbox.mbox(mboxFile)
         message = Mail.create_message(
             "john@doe.com", "mary@doe.com", "Hi Mary!", {"Subject": "Let's talk"}
@@ -83,7 +83,7 @@ class TestMail(BaseThunderbirdTest):
         """
         mail = self.getMockedMail()
         wikison = mail.asWikiMarkup()
-        expected =f"""{{{{mail
+        expected = f"""{{{{mail
 |user={self.mock_user}
 |id=mailman.45.1601640003.19840.wikidata@lists.wikimedia.org
 |from=wikidata-request@lists.wikimedia.org

@@ -23,8 +23,8 @@ import yaml
 from fastapi.responses import FileResponse
 from ftfy import fix_text
 from lodstorage.sql import SQLDB
-from ngwidgets.file_selector import FileSelector
 from ngwidgets.dateparser import DateParser
+from ngwidgets.file_selector import FileSelector
 from ngwidgets.progress import Progressbar, TqdmProgressbar
 from ngwidgets.widgets import Link
 
@@ -44,6 +44,7 @@ class MailArchive:
         gloda_db_update_time (str, optional): The last update time of the global database, default is None.
         index_db_update_time (str, optional): The last update time of the index database, default is None.
     """
+
     user: str
     gloda_db_path: str
     index_db_path: str = None
@@ -119,11 +120,13 @@ class MailArchive:
             record = {"#": index, **record}
         return record
 
+
 @dataclass
 class IndexingResult:
     """
     result of creating the index_db for all mailboxes
     """
+
     total_mailboxes: int
     total_successes: int
     total_errors: int
@@ -132,7 +135,8 @@ class IndexingResult:
     errors: Dict[str, Exception]
     gloda_db_update_time: Optional[datetime] = None
     index_db_update_time: Optional[datetime] = None
-    msg: Optional[str] = "" 
+    msg: Optional[str] = ""
+
 
 class Thunderbird(MailArchive):
     """
@@ -167,7 +171,7 @@ class Thunderbird(MailArchive):
         self.index_db = SQLDB(self.index_db_path, check_same_thread=False)
         self.local_folders = f"{self.profile}/Mail/Local Folders"
 
-    def get_mailboxes(self, progress_bar=None, restore_toc:bool=False):
+    def get_mailboxes(self, progress_bar=None, restore_toc: bool = False):
         """
         Create a dict of Thunderbird mailboxes.
 
@@ -179,7 +183,9 @@ class Thunderbird(MailArchive):
                 return
             if not node["label"].endswith(".sbd"):  # It's a mailbox
                 mailbox_path = node["value"]
-                mailboxes[mailbox_path] = ThunderbirdMailbox(self, mailbox_path,restore_toc=restore_toc)
+                mailboxes[mailbox_path] = ThunderbirdMailbox(
+                    self, mailbox_path, restore_toc=restore_toc
+                )
                 if progress_bar:
                     progress_bar.update(1)
 
@@ -202,8 +208,8 @@ class Thunderbird(MailArchive):
         # Traverse the tree and populate the mailboxes dictionary
         traverse_tree(file_selector.tree_structure)
         return mailboxes
-    
-    def get_mailboxes_by_relative_path(self) -> Dict[str, 'ThunderbirdMailbox']:
+
+    def get_mailboxes_by_relative_path(self) -> Dict[str, "ThunderbirdMailbox"]:
         """
         Retrieves all mailboxes and returns a dictionary keyed by their relative folder paths.
 
@@ -214,16 +220,21 @@ class Thunderbird(MailArchive):
             Dict[str, ThunderbirdMailbox]: A dictionary where the keys are relative folder paths and the values are
                                            ThunderbirdMailbox objects representing the corresponding mailboxes.
         """
-        mailboxes_dict=self.get_mailboxes()
-        mailboxes_by_relative_path={}
+        mailboxes_dict = self.get_mailboxes()
+        mailboxes_by_relative_path = {}
         for mailbox in mailboxes_dict.values():
-            mailboxes_by_relative_path[mailbox.relative_folder_path]=mailbox
-        return mailboxes_by_relative_path    
+            mailboxes_by_relative_path[mailbox.relative_folder_path] = mailbox
+        return mailboxes_by_relative_path
 
-    def to_view_lod(self, fs_mailboxes_dict: Dict[str, 'ThunderbirdMailbox'], db_mailboxes_dict: Dict[str, Any],force_count: bool = False) -> List[Dict[str, Any]]:
+    def to_view_lod(
+        self,
+        fs_mailboxes_dict: Dict[str, "ThunderbirdMailbox"],
+        db_mailboxes_dict: Dict[str, Any],
+        force_count: bool = False,
+    ) -> List[Dict[str, Any]]:
         """
         Merges mailbox information from the filesystem and SQL database into a unified view.
-    
+
         Args:
             fs_mailboxes_dict (Dict[str, ThunderbirdMailbox]): Mailboxes from the filesystem.
             db_mailboxes_dict (Dict[str, Any]): Mailboxes from the SQL database.
@@ -233,46 +244,62 @@ class Thunderbird(MailArchive):
         """
         merged_view_lod = []
         all_keys = set(fs_mailboxes_dict.keys()) | set(db_mailboxes_dict.keys())
-        unknown='❓'
-        disk_symbol = '💾'  # Symbol representing the filesystem
-        database_symbol = '🗄️'  # Symbol representing the database
+        unknown = "❓"
+        disk_symbol = "💾"  # Symbol representing the filesystem
+        database_symbol = "🗄️"  # Symbol representing the database
 
         for key in all_keys:
             fs_mailbox = fs_mailboxes_dict.get(key)
             db_mailbox = db_mailboxes_dict.get(key)
-    
-            state_char = "🔄" if fs_mailbox and db_mailbox else disk_symbol if fs_mailbox else database_symbol
-            if db_mailbox and 'message_count' in db_mailbox:
-                count_str = str(db_mailbox['message_count'])
+
+            state_char = (
+                "🔄"
+                if fs_mailbox and db_mailbox
+                else disk_symbol
+                if fs_mailbox
+                else database_symbol
+            )
+            if db_mailbox and "message_count" in db_mailbox:
+                count_str = str(db_mailbox["message_count"])
             elif fs_mailbox and force_count:
-                count_str = str(len(fs_mailbox.mbox)) if hasattr(fs_mailbox, 'mbox') else '⚠️❓'
+                count_str = (
+                    str(len(fs_mailbox.mbox)) if hasattr(fs_mailbox, "mbox") else "⚠️❓"
+                )
             else:
                 count_str = unknown
-            relative_folder_path=fs_mailbox.relative_folder_path if fs_mailbox else db_mailbox["relative_folder_path"]
-            folder_url = f"/folder/{self.user}{relative_folder_path}" if fs_mailbox else '#'
-            error_str= fs_mailbox.error if fs_mailbox else db_mailbox.get('Error', unknown)
-            fs_update_time=fs_mailbox.folder_update_time if fs_mailbox else unknown 
-            db_update_time=db_mailbox['folder_update_time'] if db_mailbox else unknown
-            
+            relative_folder_path = (
+                fs_mailbox.relative_folder_path
+                if fs_mailbox
+                else db_mailbox["relative_folder_path"]
+            )
+            folder_url = (
+                f"/folder/{self.user}{relative_folder_path}" if fs_mailbox else "#"
+            )
+            error_str = (
+                fs_mailbox.error if fs_mailbox else db_mailbox.get("Error", unknown)
+            )
+            fs_update_time = fs_mailbox.folder_update_time if fs_mailbox else unknown
+            db_update_time = db_mailbox["folder_update_time"] if db_mailbox else unknown
+
             mailbox_record = {
-                'State': state_char,
-                'Folder': Link.create(folder_url, relative_folder_path),
-                f'{disk_symbol}-Updated': fs_update_time,
-                f'{database_symbol}-Updated': db_update_time,
-                'Count': count_str,
-                'Error': error_str
+                "State": state_char,
+                "Folder": Link.create(folder_url, relative_folder_path),
+                f"{disk_symbol}-Updated": fs_update_time,
+                f"{database_symbol}-Updated": db_update_time,
+                "Count": count_str,
+                "Error": error_str,
             }
             merged_view_lod.append(mailbox_record)
-        
+
         # Sorting by 'Updated' field
-        merged_view_lod.sort(key=lambda x: x[f'{disk_symbol}-Updated'], reverse=True)
+        merged_view_lod.sort(key=lambda x: x[f"{disk_symbol}-Updated"], reverse=True)
 
         # Assigning index after sorting
         for index, record in enumerate(merged_view_lod):
-            merged_view_lod[index] = {'#': index, **record}  
-    
+            merged_view_lod[index] = {"#": index, **record}
+
         return merged_view_lod
-    
+
     def get_synched_mailbox_view_lod(self):
         """
         Fetches and synchronizes mailbox data from the filesystem and SQL database and returns a unified view.
@@ -284,21 +311,23 @@ class Thunderbird(MailArchive):
         fs_mboxes_dict = self.get_mailboxes_by_relative_path()
 
         # Retrieve mailbox data from the SQL database
-        db_mboxes_dict = self.get_mailboxes_dod_from_sqldb(self.index_db)  # Database mailboxes
+        db_mboxes_dict = self.get_mailboxes_dod_from_sqldb(
+            self.index_db
+        )  # Database mailboxes
 
         # Merge and format the data for view
         mboxes_view_lod = self.to_view_lod(fs_mboxes_dict, db_mboxes_dict)
 
         return mboxes_view_lod
-    
+
     def get_mailboxes_dod_from_sqldb(self, sql_db: SQLDB) -> dict:
         """
         Retrieve the mailbox list of dictionaries (LoD) from the given SQL database,
         and return it as a dictionary keyed by relative_folder_path.
-    
+
         Args:
             sql_db (SQLDB): An instance of SQLDB connected to the SQLite database.
-    
+
         Returns:
             dict: A dictionary of mailbox dictionaries, keyed by relative_folder_path.
         """
@@ -307,19 +336,19 @@ class Thunderbird(MailArchive):
                        ORDER BY folder_update_time DESC"""
         try:
             mailboxes_lod = sql_db.query(sql_query)
-            mailboxes_dict = {mb['relative_folder_path']: mb for mb in mailboxes_lod}
+            mailboxes_dict = {mb["relative_folder_path"]: mb for mb in mailboxes_lod}
             return mailboxes_dict
         except sqlite3.OperationalError as e:
             if "no such table" in str(e):
                 return {}
             else:
                 raise e
-            
+
     def index_mailbox(
-        self, 
-        mailbox: 'ThunderbirdMailbox', 
-        progress_bar: Progressbar, 
-        force_create: bool
+        self,
+        mailbox: "ThunderbirdMailbox",
+        progress_bar: Progressbar,
+        force_create: bool,
     ) -> tuple:
         """
         Process a single mailbox for updating the index.
@@ -348,7 +377,7 @@ class Thunderbird(MailArchive):
                     withDrop=with_create,
                 )
                 # first delete existing index entries (if any)
-                delete_cmd=f"DELETE FROM mail_index WHERE folder_path='{mailbox.relative_folder_path}'"
+                delete_cmd = f"DELETE FROM mail_index WHERE folder_path='{mailbox.relative_folder_path}'"
                 self.index_db.execute(delete_cmd)
                 # then store the new ones
                 self.index_db.store(mbox_lod, mbox_entity_info, fixNone=True)
@@ -360,45 +389,45 @@ class Thunderbird(MailArchive):
         return message_count, exception  # Single return statement
 
     def prepare_mailboxes_for_indexing(
-        self, 
-        force_create: bool = False, 
-        progress_bar: Optional[Progressbar] = None, 
-        relative_paths: Optional[List[str]] = None
-    ) -> Tuple[Dict[str, 'ThunderbirdMailbox'], Dict[str, 'ThunderbirdMailbox']]:
+        self,
+        force_create: bool = False,
+        progress_bar: Optional[Progressbar] = None,
+        relative_paths: Optional[List[str]] = None,
+    ) -> Tuple[Dict[str, "ThunderbirdMailbox"], Dict[str, "ThunderbirdMailbox"]]:
         """
         Prepare a list of mailboxes for indexing by identifying which ones need to be updated.
-    
+
         This function iterates through all Thunderbird mailboxes, checking if each needs an update
         based on the last update time in the index database. It returns two dictionaries: one containing
         all mailboxes and another containing only the mailboxes that need updating.
-    
+
         Args:
             force_create (bool): Flag to force creation of a new index for all mailboxes.
             progress_bar (Optional[Progressbar]): A progress bar instance for displaying the progress.
             relative_paths (Optional[List[str]]): A list of relative paths for specific mailboxes to update. If None, all mailboxes are considered.
-    
+
         Returns:
             Tuple[Dict[str, ThunderbirdMailbox], Dict[str, ThunderbirdMailbox]]: A tuple containing two dictionaries.
                 The first dictionary contains all mailboxes, and the second contains only mailboxes that need updating.
-        """        
-     
+        """
+
         # optionally Retrieve all mailboxes
         if not relative_paths:
             all_mailboxes = self.get_mailboxes(progress_bar)
         else:
-            all_mailboxes={}
+            all_mailboxes = {}
             for relative_path in relative_paths:
-                mailbox_path=f"{self.profile}/Mail/Local Folders{relative_path}"
-                mailbox=ThunderbirdMailbox(self, mailbox_path)
+                mailbox_path = f"{self.profile}/Mail/Local Folders{relative_path}"
+                mailbox = ThunderbirdMailbox(self, mailbox_path)
                 all_mailboxes[mailbox_path] = mailbox
         # Retrieve the current state of mailboxes from the index database, if not forcing creation
         mailboxes_update_dod = {}
         if not force_create:
             mailboxes_update_dod = self.get_mailboxes_dod_from_sqldb(self.index_db)
-    
+
         # List to hold mailboxes that need updating
         mailboxes_to_update = {}
-    
+
         # Iterate through each mailbox to check if it needs updating
         if force_create:
             # If force_create is True, add all mailboxes to the update list
@@ -412,16 +441,20 @@ class Thunderbird(MailArchive):
             else:
                 for mailbox in all_mailboxes.values():
                     # Check update times only if not forcing creation
-                    mailbox_info = mailboxes_update_dod.get(mailbox.relative_folder_path, {})
+                    mailbox_info = mailboxes_update_dod.get(
+                        mailbox.relative_folder_path, {}
+                    )
                     _prev_mailbox_update_time = mailbox_info.get("folder_update_time")
                     current_folder_update_time = mailbox.folder_update_time
-        
+
                     # Check if the mailbox needs updating
-                    if (self.index_db_update_time is None) or current_folder_update_time > self.index_db_update_time:
+                    if (
+                        self.index_db_update_time is None
+                    ) or current_folder_update_time > self.index_db_update_time:
                         mailboxes_to_update[mailbox.relative_folder_path] = mailbox
-        
-        return all_mailboxes,mailboxes_to_update
-    
+
+        return all_mailboxes, mailboxes_to_update
+
     def needs_index_update(self, force_create: bool) -> tuple:
         """
         Check if the index database needs to be updated or created.
@@ -434,16 +467,17 @@ class Thunderbird(MailArchive):
         """
         gloda_db_update_time = (
             datetime.fromtimestamp(os.path.getmtime(self.gloda_db_path))
-            if self.gloda_db_path else None
+            if self.gloda_db_path
+            else None
         )
         index_db_update_time = (
             datetime.fromtimestamp(os.path.getmtime(self.index_db_path))
-            if self.index_db_exists() else None
+            if self.index_db_exists()
+            else None
         )
 
         index_up_to_date = (
-            self.index_db_exists() and 
-            index_db_update_time > gloda_db_update_time
+            self.index_db_exists() and index_db_update_time > gloda_db_update_time
         )
 
         needs_update = not index_up_to_date or force_create
@@ -471,46 +505,65 @@ class Thunderbird(MailArchive):
         total_mailboxes, total_errors, total_successes, error_rate = 0, 0, 0, 0.0
         errors, success = {}, Counter()
         msg = "Indexing operation completed."
-        gloda_db_update_time, index_db_update_time, needs_update = self.needs_index_update(force_create)
+        (
+            gloda_db_update_time,
+            index_db_update_time,
+            needs_update,
+        ) = self.needs_index_update(force_create)
         if needs_update or relative_paths:
             if progress_bar is None:
                 progress_bar = TqdmProgressbar(
                     total=total_mailboxes, desc="create index", unit="mailbox"
                 )
-                
-            all_mailboxes,mailboxes_to_update = self.prepare_mailboxes_for_indexing(force_create, progress_bar,relative_paths=relative_paths)
+
+            all_mailboxes, mailboxes_to_update = self.prepare_mailboxes_for_indexing(
+                force_create, progress_bar, relative_paths=relative_paths
+            )
             total_mailboxes = len(mailboxes_to_update)
-            progress_bar.total=total_mailboxes
+            progress_bar.total = total_mailboxes
             progress_bar.reset()
-            
+
             needs_create = force_create or not self.index_db_exists()
             for mailbox in mailboxes_to_update.values():
                 message_count, exception = self.index_mailbox(
-                    mailbox,progress_bar, needs_create
+                    mailbox, progress_bar, needs_create
                 )
                 if message_count > 0 and needs_create:
-                    needs_create = False  # Subsequent updates will not recreate the table
+                    needs_create = (
+                        False  # Subsequent updates will not recreate the table
+                    )
 
                 if exception:
-                    mailbox.error=exception
+                    mailbox.error = exception
                     errors[mailbox.folder_path] = exception
                 else:
                     success[mailbox.folder_path] = message_count
-            # if not relative paths were set we need to recreate the mailboxes table       
-            needs_create=relative_paths is None
+            # if not relative paths were set we need to recreate the mailboxes table
+            needs_create = relative_paths is None
             if relative_paths:
                 # Delete existing entries for updated mailboxes
                 for relative_path in relative_paths:
-                    delete_query = f"DELETE FROM mailboxes WHERE folder_path = '{relative_path}'"
+                    delete_query = (
+                        f"DELETE FROM mailboxes WHERE folder_path = '{relative_path}'"
+                    )
                     self.index_db.execute(delete_query)
 
                 # Re-create the list of dictionaries for all selected mailboxes
-                mailboxes_lod = [mailbox.to_dict() for mailbox in mailboxes_to_update.values()]
-            else:  
-                mailboxes_lod = [mailbox.to_dict() for mailbox in all_mailboxes.values()]
-            mailboxes_entity_info=self.index_db.createTable(mailboxes_lod, "mailboxes",withCreate=needs_create,withDrop=needs_create)
+                mailboxes_lod = [
+                    mailbox.to_dict() for mailbox in mailboxes_to_update.values()
+                ]
+            else:
+                mailboxes_lod = [
+                    mailbox.to_dict() for mailbox in all_mailboxes.values()
+                ]
+            mailboxes_entity_info = self.index_db.createTable(
+                mailboxes_lod,
+                "mailboxes",
+                withCreate=needs_create,
+                withDrop=needs_create,
+            )
             # Store the mailbox data in the 'mailboxes' table
-            if len(mailboxes_lod)>0:
+            if len(mailboxes_lod) > 0:
                 self.index_db.store(mailboxes_lod, mailboxes_entity_info)
 
             total_errors = len(errors)
@@ -563,8 +616,16 @@ Index db: {index_db_update_time}
         # Summary message
         total_errors = len(indexing_result.errors)
         total_successes = sum(indexing_result.success.values())
-        average_success = (total_successes / len(indexing_result.success)) if indexing_result.success else 0
-        error_rate = (total_errors / indexing_result.total_mailboxes) * 100 if indexing_result.total_mailboxes > 0 else 0
+        average_success = (
+            (total_successes / len(indexing_result.success))
+            if indexing_result.success
+            else 0
+        )
+        error_rate = (
+            (total_errors / indexing_result.total_mailboxes) * 100
+            if indexing_result.total_mailboxes > 0
+            else 0
+        )
 
         marker = "❌ " if total_errors > 0 else "✅"
         msg_channel = sys.stderr if total_errors > 0 else sys.stdout
@@ -573,32 +634,32 @@ Index db: {index_db_update_time}
             f"Average messages per successful mailbox: {average_success:.2f}, "
             f"{total_errors} mailboxes with errors ({error_rate:.2f}%)."
         )
-        if indexing_result.total_mailboxes>0:
+        if indexing_result.total_mailboxes > 0:
             print(summary_msg, file=msg_channel)
 
     @classmethod
-    def get_config_path(cls)->str:
+    def get_config_path(cls) -> str:
         home = str(Path.home())
-        return os.path.join(home,".thunderbird")
-    
+        return os.path.join(home, ".thunderbird")
+
     @classmethod
-    def get_profiles_path(cls)->str:
+    def get_profiles_path(cls) -> str:
         """
         get the profile path
         """
-        config_path=cls.get_config_path()
+        config_path = cls.get_config_path()
         # Ensure the config_path exists
         os.makedirs(config_path, exist_ok=True)
-        
-        profiles_path  = os.path.join(config_path, "thunderbird.yaml")
+
+        profiles_path = os.path.join(config_path, "thunderbird.yaml")
         return profiles_path
-    
+
     @classmethod
     def getProfileMap(cls):
         """
         get the profile map from a thunderbird.yaml file
         """
-        profiles_path=cls.get_profiles_path()
+        profiles_path = cls.get_profiles_path()
         with open(profiles_path, "r") as stream:
             profile_map = yaml.safe_load(stream)
         return profile_map
@@ -684,7 +745,7 @@ class ThunderbirdMailbox:
         tb: Thunderbird,
         folder_path: str,
         use_relative_path: bool = False,
-        restore_toc: bool=True,
+        restore_toc: bool = True,
         debug: bool = False,
     ):
         """
@@ -714,14 +775,14 @@ class ThunderbirdMailbox:
         self.folder_update_time = self.tb._get_file_update_time(self.folder_path)
 
         self.debug = debug
-        self.error=""
+        self.error = ""
         if not os.path.isfile(folder_path):
             msg = f"{folder_path} does not exist"
             raise ValueError(msg)
         self.relative_folder_path = ThunderbirdMailbox.as_relative_path(folder_path)
         self.mbox = mailbox.mbox(folder_path)
         if restore_toc and tb.index_db_exists():
-            self.restore_toc_from_sqldb(tb.index_db)    
+            self.restore_toc_from_sqldb(tb.index_db)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -736,7 +797,7 @@ class ThunderbirdMailbox:
             "relative_folder_path": self.relative_folder_path,
             "folder_update_time": self.folder_update_time,
             "message_count": message_count,
-            "error": str(self.error)
+            "error": str(self.error),
         }
 
     @staticmethod
@@ -792,16 +853,18 @@ ORDER BY email_index"""
         return index_lod
 
     @classmethod
-    def to_view_lod(cls, index_lod: List[Dict[str, Any]], user: str) -> List[Dict[str, Any]]:
+    def to_view_lod(
+        cls, index_lod: List[Dict[str, Any]], user: str
+    ) -> List[Dict[str, Any]]:
         """
         Converts a list of index record dictionaries into a format suitable for display in an ag-grid.
         It renames and repositions the 'email_index' key, removes 'start_pos' and 'stop_pos', and converts
         'message_id' to a hyperlink using a custom Link.create() function.
-    
+
         Args:
             index_lod (List[Dict[str, Any]]): A list of dictionaries representing the index records.
             user (str): The user identifier to be used in constructing URLs for hyperlinks.
-    
+
         Returns:
             List[Dict[str, Any]]: The list of modified index record dictionaries.
         """
@@ -810,20 +873,20 @@ ORDER BY email_index"""
             for key in record:
                 if isinstance(record[key], str):
                     record[key] = html.escape(record[key])
-    
+
             # Renaming and moving 'email_index' to the first position as '#'
             record["#"] = record.pop("email_index") + 1
-    
+
             # Removing 'start_pos','stop_pos' and 'folder_path'
             record.pop("start_pos", None)
             record.pop("stop_pos", None)
             record.pop("folder_path", None)
-    
+
             # Converting 'message_id' to a hyperlink
             mail_id = record["message_id"]
             url = f"/mail/{user}/{mail_id}"
             record["message_id"] = Link.create(url, text=mail_id)
-    
+
         # Reordering keys to ensure '#' is first
         sorted_index_lod = [
             {k: record[k] for k in sorted(record, key=lambda x: x != "#")}
@@ -853,13 +916,13 @@ ORDER BY email_index"""
 
             # Update the TOC with the new positions
             self.mbox._toc[idx] = (start_pos, stop_pos)
-            
-    def decode_subject(self, subject)->str:
+
+    def decode_subject(self, subject) -> str:
         # Decode the subject
         decoded_bytes = decode_header(subject)
         # Concatenate the decoded parts
-        decoded_subject = ''.join(
-            str(text, charset or 'utf-8') if isinstance(text, bytes) else text
+        decoded_subject = "".join(
+            str(text, charset or "utf-8") if isinstance(text, bytes) else text
             for text, charset in decoded_bytes
         )
         return decoded_subject
@@ -872,8 +935,8 @@ ORDER BY email_index"""
         for idx, message in enumerate(self.mbox):
             start_pos, stop_pos = self.mbox._toc.get(idx, (None, None))
             error_msg = ""  # Variable to store potential error messages
-            decoded_subject="?"
-            msg_date,msg_iso_date,error_msg = Mail.get_iso_date(message)
+            decoded_subject = "?"
+            msg_date, msg_iso_date, error_msg = Mail.get_iso_date(message)
             try:
                 # Decode the subject
                 decoded_subject = self.decode_subject(message.get("Subject", "?"))
@@ -882,7 +945,9 @@ ORDER BY email_index"""
 
             record = {
                 "folder_path": self.relative_folder_path,
-                "message_id": message.get("Message-ID", f"{self.relative_folder_path}#{idx}"),
+                "message_id": message.get(
+                    "Message-ID", f"{self.relative_folder_path}#{idx}"
+                ),
                 "sender": str(message.get("From", "?")),
                 "recipient": str(message.get("To", "?")),
                 "subject": decoded_subject,
@@ -891,12 +956,11 @@ ORDER BY email_index"""
                 "email_index": idx,
                 "start_pos": start_pos,
                 "stop_pos": stop_pos,
-                "error": error_msg  # Add the error message if any
+                "error": error_msg,  # Add the error message if any
             }
             lod.append(record)
 
         return lod
-
 
     def get_message_by_key(self, messageKey):
         """
@@ -933,6 +997,7 @@ ORDER BY email_index"""
         close the mailbox
         """
         self.mbox.close()
+
 
 @dataclass
 class MailLookup:
@@ -1042,31 +1107,31 @@ class Mail(object):
             self.msg = tb_mbox.get_message_by_key(mail_lookup.message_index)
             # if lookup fails we might loop thru
             # all messages if this option is active ...
-            found=self.check_mailid()    
+            found = self.check_mailid()
             if not found and self.keySearch:
                 self.msg = tb_mbox.search_message_by_key(self.mailid)
             if self.msg is not None:
                 if self.check_mailid():
                     self.extract_message()
                 else:
-                    self.msg=None
+                    self.msg = None
             tb_mbox.close()
-            
-    def check_mailid(self)->bool:
+
+    def check_mailid(self) -> bool:
         """
         check the mailid
         """
-        found=False
+        found = False
         self.extract_headers()
-        id_header="Message-ID"
+        id_header = "Message-ID"
         if id_header in self.headers:
-            header_id=self.headers[id_header]
-            header_id= self.normalize_mailid(header_id)
-            found=header_id==self.mailid
+            header_id = self.headers[id_header]
+            header_id = self.normalize_mailid(header_id)
+            found = header_id == self.mailid
         return found
-    
+
     @classmethod
-    def get_iso_date(cls,msg) -> Tuple[str,Optional[str], Optional[str]]:
+    def get_iso_date(cls, msg) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Extracts and formats the date from the email header in ISO format.
 
@@ -1074,7 +1139,7 @@ class Mail(object):
             msg (Mail): The mail object from which to extract the date.
 
         Returns:
-            Tuple[str, Optional[str], Optional[str]]: A tuple containing the msg_date, the formatted date in ISO format, 
+            Tuple[str, Optional[str], Optional[str]]: A tuple containing the msg_date, the formatted date in ISO format,
             and an error message if the date cannot be extracted or parsed, otherwise None.
         """
         date_parser = DateParser()
@@ -1086,15 +1151,15 @@ class Mail(object):
                 iso_date = date_parser.parse_date(msg_date)
             except Exception as e:
                 error_msg = f"Error parsing date '{msg_date}': {e}"
-        return msg_date,iso_date, error_msg
-            
-    def normalize_mailid(self,mail_id:str)->str:
+        return msg_date, iso_date, error_msg
+
+    def normalize_mailid(self, mail_id: str) -> str:
         """
         remove the surrounding <> of the given mail_id
         """
-        mail_id= re.sub(r"\<(.*)\>", r"\1", mail_id)
+        mail_id = re.sub(r"\<(.*)\>", r"\1", mail_id)
         return mail_id
-    
+
     def as_html_error_msg(self) -> str:
         """
         Generates an HTML formatted error message for the Mail instance.
@@ -1108,7 +1173,7 @@ class Mail(object):
         normalized_mailid = self.normalize_mailid(self.mailid)
         html_error_msg = f"<span style='color: red;'>Mail with id {normalized_mailid} not found</span>"
         return html_error_msg
-        
+
     def extract_headers(self):
         """
         update the headers
@@ -1131,7 +1196,7 @@ class Mail(object):
             lenient (bool): If True, the method will not raise an exception for decoding errors, and will instead skip the problematic parts.
 
         """
-        if len(self.headers)==0:
+        if len(self.headers) == 0:
             self.extract_headers()
         self.txtMsg = ""
         self.html = ""
@@ -1163,7 +1228,7 @@ class Mail(object):
                         self.html += rawPart
             pass
         self.handle_headers()
-        
+
     def try_decode(self, byte_str: bytes, charset: str, lenient: bool) -> str:
         """
         Attempts to decode a byte string using multiple charsets.
@@ -1195,7 +1260,9 @@ class Mail(object):
                 continue
 
         if not lenient:
-            raise UnicodeDecodeError(f"Failed to decode with charsets: {unique_charsets}")
+            raise UnicodeDecodeError(
+                f"Failed to decode with charsets: {unique_charsets}"
+            )
         return None
 
     def handle_headers(self):
@@ -1288,7 +1355,7 @@ class Mail(object):
         text = f"{self.user}/{self.mailid}"
         return text
 
-    def getHeader(self,headerName: str):
+    def getHeader(self, headerName: str):
         """
         get the header with the given name
 
@@ -1311,9 +1378,9 @@ class Mail(object):
         Returns:
             str: a http://wiki.bitplan.com/index.php/WikiSon notation
         """
-        if len(self.headers)==0:
+        if len(self.headers) == 0:
             self.extract_headers()
-        _msg_date,iso_date, _error_msg = Mail.get_iso_date(self.msg)
+        _msg_date, iso_date, _error_msg = Mail.get_iso_date(self.msg)
         wikison = f"""{{{{mail
 |user={self.user}
 |id={self.mailid}
@@ -1368,7 +1435,9 @@ class Mail(object):
             html_parts.append(self.table_line("To", self.toUrl))
             html_parts.append(self.table_line("Date", self.getHeader("Date")))
             html_parts.append(self.table_line("Subject", self.getHeader("Subject")))
-            html_parts.append(self.table_line("Message-ID", self.getHeader("Message-ID")))
+            html_parts.append(
+                self.table_line("Message-ID", self.getHeader("Message-ID"))
+            )
         elif section_name == "headers":
             for key, value in self.headers.items():
                 html_parts.append(self.table_line(key, value))
@@ -1378,13 +1447,9 @@ class Mail(object):
                 html_parts.append(self.mail_part_row(index, part))
         elif section_name == "text":
             # Add raw message parts if necessary
-            html_parts.append(
-                f"<hr><p id='txtMsg'>{self.txtMsg}</p>"
-            )
+            html_parts.append(f"<hr><p id='txtMsg'>{self.txtMsg}</p>")
         elif section_name == "html":
-            html_parts.append(
-                f"<hr><div id='htmlMsg'>{self.html}</div>"
-            )
+            html_parts.append(f"<hr><div id='htmlMsg'>{self.html}</div>")
         if section_name in table_sections:
             # Closing tables
             html_parts.append("</table>")
@@ -1394,7 +1459,7 @@ class Mail(object):
     def as_html(self):
         """Generate the HTML representation of the mail."""
         html = ""
-        for section_name in ["title", "info", "parts", "text","html"]:
+        for section_name in ["title", "info", "parts", "text", "html"]:
             html += self.as_html_section(section_name)
         return html
 
