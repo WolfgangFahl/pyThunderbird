@@ -30,7 +30,10 @@ class ThunderbirdWebserver(InputWebserver):
         """
         copy_right = "(c)2020-2024 Wolfgang Fahl"
         config = WebserverConfig(
-            copy_right=copy_right, version=Version(), default_port=8482
+            copy_right=copy_right, 
+            version=Version(), 
+            short_name="tbmail",
+            default_port=8482
         )
         server_config = WebserverConfig.get(config)
         server_config.solution_class = ThunderbirdSolution
