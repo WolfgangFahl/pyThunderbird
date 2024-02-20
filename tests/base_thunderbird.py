@@ -19,21 +19,21 @@ class BaseThunderbirdTest(Basetest):
     Base class for Thunderbird related tests, handling common setup and utilities.
     """
 
-    def setUp(self, debug=False, profile=True, temp_dir:str=None):
+    def setUp(self, debug=False, profile=True, temp_dir: str = None):
         """
         Set up the test environment. Differentiate between development and other environments.
-        
+
         Args:
             temp_dir(str): Configurable temporary directory path
         """
         Basetest.setUp(self, debug=debug, profile=profile)
         self.user = getpass.getuser()
-        self.mock_user="mock-user"
+        self.mock_user = "mock-user"
         self.host = socket.gethostname()
         # handle temporary directory
         if temp_dir is None:
-            temp_dir="/tmp/.thunderbird"
-        self.temp_dir =  temp_dir  
+            temp_dir = "/tmp/.thunderbird"
+        self.temp_dir = temp_dir
         # make sure the temp_dir exists
         os.makedirs(os.path.dirname(temp_dir), exist_ok=True)
         self.db_path = os.path.join(self.temp_dir, f"gloda_{self.user}.sqlite")
@@ -42,23 +42,20 @@ class BaseThunderbirdTest(Basetest):
         if self.inPublicCI():
             self.create_mock_thunderbird_config()
         self.mock_mail()
-        
+
     def create_mock_thunderbird_config(self):
         """
         Create a mock .thunderbird.yaml file in the home directory for public CI environment.
         """
         # Mock configuration
         thunderbird_config = {
-            self.user: {
-                "db": self.db_path,
-                "profile": self.profile_path
-            }
+            self.user: {"db": self.db_path, "profile": self.profile_path}
         }
 
         # Write the configuration to a .thunderbird.yaml file in the home directory
         profiles_path = Thunderbird.get_profiles_path()
         if not os.path.isfile(profiles_path):
-            with open(profiles_path, 'w') as config_file:
+            with open(profiles_path, "w") as config_file:
                 yaml.dump(thunderbird_config, config_file)
 
     def is_developer(self) -> bool:
@@ -71,16 +68,18 @@ class BaseThunderbirdTest(Basetest):
         dev = self.user == "wf" and self.host == "fix.bitplan.com"
         return dev
 
-    def mock_mail(self,user: str=None):
+    def mock_mail(self, user: str = None):
         """
         Create a mock SQLITE gloda and Thunderbird environment.
-        
+
         Args:
             user (str): User name for whom the mail environment is mocked.
         """
         if user is None:
-            user=self.mock_user
-        mboxFile = os.path.join(self.profile_path, "Mail", "Local Folders", f"WF.sbd", "2020-10")
+            user = self.mock_user
+        mboxFile = os.path.join(
+            self.profile_path, "Mail", "Local Folders", f"WF.sbd", "2020-10"
+        )
         # make sure the parent directories of the mailbox exist
         os.makedirs(os.path.dirname(mboxFile), exist_ok=True)
         messagesLod = [
@@ -123,7 +122,7 @@ Send Wikidata mailing list submissions to
         file = open(mboxFile, "w")
         file.write(mboxContent)
         file.close()
-        tb=Thunderbird(user=user, db=self.db_path, profile=self.profile_path)
+        tb = Thunderbird(user=user, db=self.db_path, profile=self.profile_path)
         Thunderbird.profiles[user] = tb
 
     def getMockedMail(self):
