@@ -110,6 +110,7 @@ class ThunderbirdWebserver(InputWebserver):
         """
         configure me e.g. the allowed urls
         """
+        InputWebserver.configure_run(self)
         # If args.user_list is None or empty, use users from the profiles
         # see https://github.com/WolfgangFahl/pyThunderbird/issues/19
         if not self.args.user_list:
