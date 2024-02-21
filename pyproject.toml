@@ -18,7 +18,7 @@ dependencies= [
 	"pylodstorage>=0.4.11",
 	"PyYAML>=6.0",
 	# https://github.com/WolfgangFahl/nicegui_widgets
-	"ngwidgets>=0.12.0",
+	"ngwidgets>=0.12.2",
 	# ftfy 6.1.3
 	"ftfy>=6.1.3",
 ]

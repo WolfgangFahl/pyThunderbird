@@ -886,8 +886,9 @@ ORDER BY email_index"""
 
             # Converting 'message_id' to a hyperlink
             mail_id = record["message_id"]
-            url = f"/mail/{user}/{mail_id}"
-            record["message_id"] = Link.create(url, text=mail_id)
+            normalized_mail_id = Mail.normalize_mailid(mail_id)
+            url = f"/mail/{user}/{normalized_mail_id}"
+            record["message_id"] = Link.create(url, text=normalized_mail_id)
 
         # Reordering keys to ensure '#' is first
         sorted_index_lod = [
@@ -1135,7 +1136,7 @@ class Mail(object):
             self.tb = Thunderbird.get(user)
         else:
             self.tb = tb
-        mailid = self.normalize_mailid(mailid)
+        mailid = Mail.normalize_mailid(mailid)
         self.mailid = mailid
         self.keySearch = keySearch
         self.rawMsg = None
@@ -1211,7 +1212,8 @@ class Mail(object):
                 error_msg = f"Error parsing date '{msg_date}': {e}"
         return msg_date, iso_date, error_msg
 
-    def normalize_mailid(self, mail_id: str) -> str:
+    @classmethod
+    def normalize_mailid(cls, mail_id: str) -> str:
         """
         remove the surrounding <> of the given mail_id
         """
@@ -1228,7 +1230,7 @@ class Mail(object):
         Returns:
             str: An HTML string representing the error message.
         """
-        normalized_mailid = self.normalize_mailid(self.mailid)
+        normalized_mailid = Mail.normalize_mailid(self.mailid)
         html_error_msg = f"<span style='color: red;'>Mail with id {normalized_mailid} not found</span>"
         return html_error_msg
 
