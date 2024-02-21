@@ -35,7 +35,8 @@ class ThunderbirdWebserver(InputWebserver):
             copy_right=copy_right, 
             version=Version(), 
             short_name="tbmail",
-            default_port=8482
+            default_port=8482,
+            timeout=15.0
         )
         server_config = WebserverConfig.get(config)
         server_config.solution_class = ThunderbirdSolution
@@ -47,6 +48,12 @@ class ThunderbirdWebserver(InputWebserver):
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
         self.bth = BackgroundTaskHandler()
         app.on_shutdown(self.bth.cleanup())
+        
+        @app.get("/part/{user}/{mailid}/{part_index:int}")
+        async def get_part(user: str, mailid: str, part_index: int):
+            return await self.get_part(
+                user, mailid, part_index
+            )
 
         @app.get("/mail/{user}/{mailid}.wiki")
         def get_mail_wikimarkup(user: str, mailid: str):
@@ -100,12 +107,6 @@ class ThunderbirdWebserver(InputWebserver):
             return await self.page(
                 client,ThunderbirdSolution.show_folders,
                 user, profile_key
-            )
-
-        @app.get("/part/{user}/{mailid}/{part_index:int}")
-        async def get_part(user: str, mailid: str, part_index: int):
-            return await self.get_part(
-                user, mailid, part_index
             )
 
     def configure_run(self):
