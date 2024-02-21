@@ -3,7 +3,8 @@ Created on 2023-11-23
 
 @author: wf
 """
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import HTTPException, Response
+from fastapi.responses import  FileResponse
 from ngwidgets.background import BackgroundTaskHandler
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
@@ -17,6 +18,7 @@ from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
 from thunderbird.search import MailSearch
 from thunderbird.version import Version
 
+from typing import Any
 
 class ThunderbirdWebserver(InputWebserver):
     """
@@ -130,19 +132,47 @@ class ThunderbirdWebserver(InputWebserver):
             all_mailboxes, mailboxes_to_update = tb.prepare_mailboxes_for_indexing(
                 progress_bar=progress_bar
             )
-            update_lod = [mb.to_dict() for mb in mailboxes_to_update.values()]
+            _update_lod = [mb.to_dict() for mb in mailboxes_to_update.values()]
             self.mailboxes_grid.load_lod(all_mailboxes)
         except Exception as ex:
             self.handle_exception(ex)
 
-    def get_mail(self, user: str, mailid: str):
+    def get_mail(self, user: str, mailid: str) -> Any:
+        """
+        Retrieves a specific mail for a given user by its mail identifier.
+    
+        Args:
+            user (str): The username of the individual whose mail is to be retrieved.
+            mailid (str): The unique identifier for the mail to be retrieved.
+    
+        Returns:
+            Any: Returns an instance of the Mail class corresponding to the specified `mailid` for the `user`.
+    
+        Raises:
+            HTTPException: If the user is not found in the mail archives, an HTTP exception with status code 404 is raised.
+        """
         if user not in self.mail_archives.mail_archives:
             raise HTTPException(status_code=404, detail=f"User '{user}' not found")
         tb = self.mail_archives.mail_archives[user]
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
         return mail
     
-    async def get_part(self, user: str, mailid: str, part_index: int):
+    async def get_part(self, user: str, mailid: str, part_index: int) -> FileResponse:
+        """
+        Asynchronously retrieves a specific part of a mail for a given user, identified by the mail's unique ID and the part index.
+    
+        Args:
+            user (str): The username of the individual whose mail part is to be retrieved.
+            mailid (str): The unique identifier for the mail whose part is to be retrieved.
+            part_index (int): The index of the part within the mail to retrieve.
+    
+        Returns:
+            FileResponse: A file response object containing the specified part of the mail.
+    
+        Raises:
+            HTTPException: If the user or the specified mail part does not exist, an HTTP exception could be raised.
+    
+       """      
         tb = self.mail_archives.mail_archives[user]
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
         response = mail.part_as_fileresponse(part_index)
@@ -165,6 +195,7 @@ class ThunderbirdSolution(InputWebSolution):
         """
         super().__init__(webserver, client)  # Call to the superclass constructor
         self.tb = None
+        self.mail_archives=self.webserver.mail_archives
 
     async def show_mailboxes(self, user: str, profile_key: str):
         """
