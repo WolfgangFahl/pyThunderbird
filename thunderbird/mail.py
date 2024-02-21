@@ -1151,6 +1151,7 @@ class Mail(object):
             self.folder_path = mail_lookup.folder_path
             folderPath = self.tb.local_folders + mail_lookup.folder_path
             tb_mbox = ThunderbirdMailbox(self.tb, folderPath, debug=self.debug)
+            found=False
             if mail_lookup.start_pos is not None and mail_lookup.stop_pos is not None:
                 self.msg = tb_mbox.get_message_by_pos(mail_lookup.start_pos, mail_lookup.stop_pos)
                 found = self.check_mailid()
