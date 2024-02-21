@@ -5,14 +5,13 @@ Created on 2023-11-23
 """
 from fastapi import HTTPException, Response
 from fastapi.responses import  FileResponse
-from ngwidgets.background import BackgroundTaskHandler
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.lod_grid import GridConfig, ListOfDictsGrid
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
-from nicegui import Client, app, ui
+from nicegui import Client, app, ui, run
 
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
 from thunderbird.search import MailSearch
@@ -46,8 +45,6 @@ class ThunderbirdWebserver(InputWebserver):
     def __init__(self):
         """Constructor"""
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
-        self.bth = BackgroundTaskHandler()
-        app.on_shutdown(self.bth.cleanup())
         
         @app.get("/part/{user}/{mailid}/{part_index:int}")
         async def get_part(user: str, mailid: str, part_index: int):
@@ -123,20 +120,6 @@ class ThunderbirdWebserver(InputWebserver):
             user_list = self.args.user_list
 
         self.mail_archives = MailArchives(user_list)
-
-    def prepare_indexing(self, tb, progress_bar):
-        """
-        prepare indexing of mailboxes
-        """
-        # Prepare mailboxes for indexing
-        try:
-            all_mailboxes, mailboxes_to_update = tb.prepare_mailboxes_for_indexing(
-                progress_bar=progress_bar
-            )
-            _update_lod = [mb.to_dict() for mb in mailboxes_to_update.values()]
-            self.mailboxes_grid.load_lod(all_mailboxes)
-        except Exception as ex:
-            self.handle_exception(ex)
 
     def get_mail(self, user: str, mailid: str) -> Any:
         """
@@ -252,24 +235,40 @@ class ThunderbirdSolution(InputWebSolution):
 
         await self.setup_content_div(show_ui)
 
+    def prepare_indexing(self, tb, progress_bar):
+        """
+        prepare indexing of mailboxes
+        """
+        # Prepare mailboxes for indexing
+        try:
+            all_mailboxes, mailboxes_to_update = tb.prepare_mailboxes_for_indexing(
+                progress_bar=progress_bar
+            )
+            update_lod = [mb.to_dict() for mb in mailboxes_to_update.values()]
+            with self.mailboxes_grid_container:
+                self.mailboxes_grid.load_lod(update_lod)
+                self.mailboxes_grid.sizeColumnsToFit()
+        except Exception as ex:
+            self.handle_exception(ex)
+
     async def create_or_update_index(self, user: str, profile_key: str) -> None:
+        
         def show_ui():
             if user not in self.mail_archives.mail_archives:
                 ui.html(f"Unknown user {user}")
             else:
                 self.user = user
-                tb = self.mail_archives.mail_archives[user]
-                progress_bar = NiceguiProgressbar(
+                self.tb = self.mail_archives.mail_archives[user]
+                self.progress_bar = NiceguiProgressbar(
                     total=100, desc="updating index", unit="mailboxes"
                 )
-                with ui.element():
+                with ui.element() as self.mailboxes_grid_container:
                     # Create an instance of ListOfDictsGrid to display mailboxes
                     self.mailboxes_grid = ListOfDictsGrid(lod=[])
-                self.bth.execute_in_background(
-                    self.prepare_indexing, tb, progress_bar=progress_bar
-                )
 
-        await self.setup_content_div(show_ui)
+        await self.setup_content_div(show_ui)  
+        await run.io_bound(self.prepare_indexing, self.tb, progress_bar=self.progress_bar)
+
 
     async def show_folders(self, user: str, profile_key: str) -> None:
         """
@@ -310,25 +309,30 @@ class ThunderbirdSolution(InputWebSolution):
         """
         show the folder with the given path
         """
+        
+        def show_index():
+            try:
+                index_lod = self.folder_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
+                view_lod = ThunderbirdMailbox.to_view_lod(index_lod, user)
+                msg_count = self.folder_mbox.mbox.__len__()
+                with self.folder_view:
+                    self.folder_view.content = f"{msg_count:5} ({folder_path})"
+                    self.folder_grid.load_lod(lod=view_lod)
+                    self.folder_grid.sizeColumnsToFit()
+            except Exception as ex:
+                self.handle_exception(ex)
 
         def show():
-            def show_index():
-                index_lod = tb_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
-                view_lod = ThunderbirdMailbox.to_view_lod(index_lod, user)
-                msg_count = tb_mbox.mbox.__len__()
-                self.folder_view.content = f"{msg_count:5} ({folder_path}"
-                self.folder_grid.load_lod(lod=view_lod)
-
-            tb = Thunderbird.get(user)
-            tb_mbox = ThunderbirdMailbox(tb, folder_path, use_relative_path=True)
+            self.tb = Thunderbird.get(user)
+            self.folder_mbox = ThunderbirdMailbox(self.tb, folder_path, use_relative_path=True)
             self.folder_view = ui.html()
-            self.folder_view.content = f"Loading {tb_mbox.relative_folder_path} ..."
+            self.folder_view.content = f"Loading {self.folder_mbox.relative_folder_path} ..."
             grid_config = GridConfig(key_col="email_index")
             self.folder_grid = ListOfDictsGrid(config=grid_config)
             self.folder_grid.html_columns = [1, 2]
-            self.bth.execute_in_background(show_index)
 
         await self.setup_content_div(show)
+        await run.io_bound(show_index)
 
 
     async def showMail(self, user: str, mailid: str):
@@ -350,11 +354,12 @@ class ThunderbirdSolution(InputWebSolution):
                 else:
                     for section_name, section in self.sections.items():
                         html_markup = mail.as_html_section(section_name)
-                        section.content_div.content = html_markup
-                        section.update()
+                        with section.content_div:
+                            section.content_div.content = html_markup
+                            section.update()
             except Exception as ex:
                 self.handle_exception(ex)
-
+                
         async def show():
             try:
                 self.sections = {}
@@ -385,16 +390,14 @@ class ThunderbirdSolution(InputWebSolution):
                         )
                     for section_name in section_names:
                         self.sections[section_name].set_content(ui.html())
-                    # Execute get_mail in the background
-                    # self.future, _result_coro = await self.bth.execute_in_background(get_mail)
-
-                    get_mail()  # Removed background execution for simplicity
+                    
                 else:
                     self.mail_view = ui.html(f"unknown user {user}")
             except Exception as ex:
                 self.handle_exception(ex)
 
         await self.setup_content_div(show)
+        await run.io_bound(get_mail)  
 
     def setup_content(self):
         """
