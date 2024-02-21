@@ -49,6 +49,7 @@ class MailSearch:
             search_dict (dict): The dictionary containing search parameters.
         """
         self.dict_edit = DictEdit(search_dict)
+        self.dict_edit.expansion.open()
         self.search_button = (
             ui.button("search", icon="search", color="primary")
             .tooltip("search thunderbird mails")

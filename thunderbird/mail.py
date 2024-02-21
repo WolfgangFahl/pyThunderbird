@@ -4,6 +4,8 @@ Created on 2020-10-24
 @author: wf
 """
 import html
+from email import message_from_bytes
+from email.message import Message
 import mailbox
 import os
 import re
@@ -108,8 +110,8 @@ class MailArchive:
         profile_key = ps_parts[0] if ps_parts else None
         record = {
             "user": self.user,
-            "gloda_db_path": self.gloda_db_path,
-            "index_db_path": self.index_db_path if self.index_db_path else "-",
+            #"gloda_db_path": self.gloda_db_path,
+            #"index_db_path": self.index_db_path if self.index_db_path else "-",
             "profile": profile_key,
             "gloda_updated": self.gloda_db_update_time,
             "index_updated": self.index_db_update_time
@@ -962,9 +964,23 @@ ORDER BY email_index"""
 
         return lod
 
-    def get_message_by_key(self, messageKey):
+    def get_message_by_key(self, messageKey: int) -> Message:
         """
-        get the message by its message key
+        Retrieves the email message by its message key.
+    
+        This method fetches an email message based on its unique message key from the mbox mailbox file. It uses the
+        `messageKey` to index into the mbox file and retrieve the specific message. The method profiles the time taken
+        to fetch the message using the `Profiler` utility class for performance monitoring.
+    
+        Args:
+            messageKey (int): The unique key (index) of the email message to be retrieved.
+    
+        Returns:
+            Message: The email message object corresponding to the specified message key.
+    
+        Note:
+            The `messageKey` is assumed to be 1-based when passed to this function, but the `mailbox.mbox` class uses
+            0-based indexing, so 1 is subtracted from `messageKey` for internal use.
         """
         getTime = Profiler(
             f"mbox.get {messageKey-1} from {self.folder_path}", profile=self.debug
@@ -972,6 +988,31 @@ ORDER BY email_index"""
         msg = self.mbox.get(messageKey - 1)
         getTime.time()
         return msg
+    
+    def get_message_by_pos(self, start_pos: int, stop_pos: int) -> Optional[Message]:
+        """
+        Fetches an email message by its start and stop byte positions in the mailbox file
+        and parses it into an email.message.Message object.
+    
+        Args:
+            start_pos (int): The starting byte position of the message in the mailbox file.
+            stop_pos (int): The stopping byte position of the message in the mailbox file.
+    
+        Returns:
+            Message: The email message object parsed from the specified byte range,
+        Raises:
+            FileNotFoundError: If the mailbox file does not exist.
+            IOError: If an error occurs during file opening or reading.
+            ValueError: If the byte range does not represent a valid email message.
+         
+        """
+        with open(self.folder_path, 'rb') as mbox_file:
+            mbox_file.seek(start_pos)  # Move to the start position
+            content = mbox_file.read(stop_pos - start_pos)  # Read the specified range
+ 
+            # Parse the content into an email.message.Message object
+            msg = message_from_bytes(content)
+            return msg
 
     def search_message_by_key(self, mailid: str):
         """
@@ -1008,11 +1049,15 @@ class MailLookup:
         message_index (int): The index of the message.
         folder_path (str): The path to the folder containing the message.
         message_id (str): The unique identifier of the message.
+        start_pos (int, optional): The start byte position of the message in the mailbox file.
+        stop_pos (int, optional): The stop byte position of the message in the mailbox file.
     """
 
     message_index: int
     folder_path: str
     message_id: str
+    start_pos: Optional[int] = None
+    stop_pos: Optional[int] = None
 
     @classmethod
     def from_gloda_record(cls, mail_record: Dict) -> "MailLookup":
@@ -1047,7 +1092,9 @@ class MailLookup:
         message_id = mail_record["message_id"]
         message_index = mail_record["email_index"]
         folder_path = mail_record["folder_path"]
-        return cls(message_index, folder_path, message_id)
+        start_pos = mail_record.get("start_pos")  # Use .get to handle missing keys
+        stop_pos = mail_record.get("stop_pos")
+        return cls(message_index, folder_path, message_id, start_pos, stop_pos)
 
     @classmethod
     def from_mail_record(cls, mail_record: Dict) -> "MailLookup":
@@ -1104,7 +1151,12 @@ class Mail(object):
             self.folder_path = mail_lookup.folder_path
             folderPath = self.tb.local_folders + mail_lookup.folder_path
             tb_mbox = ThunderbirdMailbox(self.tb, folderPath, debug=self.debug)
-            self.msg = tb_mbox.get_message_by_key(mail_lookup.message_index)
+            if mail_lookup.start_pos is not None and mail_lookup.stop_pos is not None:
+                self.msg = tb_mbox.get_message_by_pos(mail_lookup.start_pos, mail_lookup.stop_pos)
+                found = self.check_mailid()
+            if not found:
+                # Fallback to other methods if start_pos and stop_pos are not available
+                self.msg = tb_mbox.get_message_by_key(mail_lookup.message_index)
             # if lookup fails we might loop thru
             # all messages if this option is active ...
             found = self.check_mailid()
@@ -1123,11 +1175,16 @@ class Mail(object):
         """
         found = False
         self.extract_headers()
-        id_header = "Message-ID"
-        if id_header in self.headers:
-            header_id = self.headers[id_header]
-            header_id = self.normalize_mailid(header_id)
-            found = header_id == self.mailid
+        # workaround awkward mail ID handling 
+        # headers should be case insensitive but in reality they might be not
+        # if any message-id fits the self.mailid we'll consider the mail as found
+        id_headers = ["Message-ID","Message-Id"]
+        for id_header in id_headers:
+            if id_header in self.headers:
+                header_id = self.headers[id_header]
+                header_id = self.normalize_mailid(header_id)
+                if header_id == self.mailid:
+                    found=True
         return found
 
     @classmethod
