@@ -40,7 +40,7 @@ class ThunderbirdWebserver(InputWebserver):
         server_config = WebserverConfig.get(config)
         server_config.solution_class = ThunderbirdSolution
         return server_config
-        return config
+        
 
     def __init__(self):
         """Constructor"""
