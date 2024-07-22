@@ -3,6 +3,7 @@ Created on 2020-10-24
 
 @author: wf
 """
+from dataclasses import field
 import html
 from email import message_from_bytes
 from email.message import Message
@@ -123,21 +124,36 @@ class MailArchive:
         return record
 
 
-@dataclass
 class IndexingResult:
     """
-    result of creating the index_db for all mailboxes
+    Result of creating the index_db for all mailboxes
     """
-
-    total_mailboxes: int
-    total_successes: int
-    total_errors: int
-    error_rate: float
-    success: Counter
-    errors: Dict[str, Exception]
+    total_mailboxes: int = 0
+    total_successes: int = 0
+    total_errors: int = 0
+    error_rate: float = 0.0
+    errors: Dict[str, Exception] = field(default_factory=dict)
     gloda_db_update_time: Optional[datetime] = None
     index_db_update_time: Optional[datetime] = None
-    msg: Optional[str] = ""
+    msg: str = ""
+    
+    def __post_init__(self):
+        self.success=Counter()
+
+    def update_msg(self):
+        msg=f"{self.total_successes}/{self.total_mailboxes} updated - {self.total_errors} errors"
+        return msg
+    
+    @property
+    def error_rate(self):
+        """
+        Calculate the error rate in percent
+        """
+        if self.total_mailboxes > 0:
+            error_rate = self.total_errors / self.total_mailboxes *100
+        else:
+            error_rate=0.0
+        return error_rate
 
 
 class Thunderbird(MailArchive):
@@ -500,6 +516,7 @@ class Thunderbird(MailArchive):
         progress_bar: Optional[Progressbar] = None,
         force_create: bool = False,
         relative_paths: Optional[List[str]] = None,
+        callback:callable = None
     ) -> IndexingResult:
         """
         Create or update an index of emails from Thunderbird mailboxes, storing the data in an SQLite database.
@@ -513,30 +530,28 @@ class Thunderbird(MailArchive):
         Returns:
             IndexingResult: An instance of IndexingResult containing detailed results of the indexing process.
         """
-        # Initialize variables
-        total_mailboxes, total_errors, total_successes, error_rate = 0, 0, 0, 0.0
-        errors, success = {}, Counter()
-        msg = "Indexing operation completed."
+        # Initialize IndexingResult
+        ir = IndexingResult()
         (
-            gloda_db_update_time,
-            index_db_update_time,
+            ir.gloda_db_update_time,
+            ir.index_db_update_time,
             needs_update,
         ) = self.needs_index_update(force_create)
         if needs_update or relative_paths:
             if progress_bar is None:
                 progress_bar = TqdmProgressbar(
-                    total=total_mailboxes, desc="create index", unit="mailbox"
+                    total=ir.total_mailboxes, desc="create index", unit="mailbox"
                 )
 
-            all_mailboxes, mailboxes_to_update = self.prepare_mailboxes_for_indexing(
+            ir.all_mailboxes, ir.mailboxes_to_update = self.prepare_mailboxes_for_indexing(
                 force_create, progress_bar, relative_paths=relative_paths
             )
-            total_mailboxes = len(mailboxes_to_update)
-            progress_bar.total = total_mailboxes
+            ir.total_mailboxes = len(ir.mailboxes_to_update)
+            progress_bar.total = ir.total_mailboxes
             progress_bar.reset()
 
             needs_create = force_create or not self.index_db_exists()
-            for mailbox in mailboxes_to_update.values():
+            for mailbox in ir.mailboxes_to_update.values():
                 message_count, exception = self.index_mailbox(
                     mailbox, progress_bar, needs_create
                 )
@@ -547,9 +562,12 @@ class Thunderbird(MailArchive):
 
                 if exception:
                     mailbox.error = exception
-                    errors[mailbox.folder_path] = exception
+                    ir.errors[mailbox.folder_path] = exception
                 else:
-                    success[mailbox.folder_path] = message_count
+                    ir.success[mailbox.folder_path] = message_count
+                ir.update_msg()
+                if callback:
+                    callback(ir,mailbox,message_count)
             # if not relative paths were set we need to recreate the mailboxes table
             needs_create = relative_paths is None
             if relative_paths:
@@ -562,11 +580,11 @@ class Thunderbird(MailArchive):
 
                 # Re-create the list of dictionaries for all selected mailboxes
                 mailboxes_lod = [
-                    mailbox.to_dict() for mailbox in mailboxes_to_update.values()
+                    mailbox.to_dict() for mailbox in ir.mailboxes_to_update.values()
                 ]
             else:
                 mailboxes_lod = [
-                    mailbox.to_dict() for mailbox in all_mailboxes.values()
+                    mailbox.to_dict() for mailbox in ir.all_mailboxes.values()
                 ]
             mailboxes_entity_info = self.index_db.createTable(
                 mailboxes_lod,
@@ -577,29 +595,12 @@ class Thunderbird(MailArchive):
             # Store the mailbox data in the 'mailboxes' table
             if len(mailboxes_lod) > 0:
                 self.index_db.store(mailboxes_lod, mailboxes_entity_info)
-
-            total_errors = len(errors)
-            total_successes = sum(success.values())
-            error_rate = (
-                (total_errors / total_mailboxes) * 100 if total_mailboxes > 0 else 0
-            )
         else:
-            msg = f"""✅ {self.user} update times:
-Index db: {index_db_update_time} 
-   Gloda: {gloda_db_update_time}
+            ir.msg = f"""✅ {self.user} update times:
+Index db: {ir.index_db_update_time} 
+   Gloda: {ir.gloda_db_update_time}
 """
-
-        return IndexingResult(
-            total_mailboxes,
-            total_successes,
-            total_errors,
-            error_rate,
-            success,
-            errors,
-            gloda_db_update_time,
-            index_db_update_time,
-            msg,
-        )
+        return ir
 
     def show_index_report(self, indexing_result: IndexingResult, verbose: bool):
         """
@@ -812,10 +813,12 @@ class ThunderbirdMailbox:
             "error": str(self.error),
         }
         
-    def as_view_record(self):
+    def as_view_record(self,index:int):
         """
+        return me as dict to view in a list of dicts grid
         """
         return {
+            "#": index,
             "path": self.relative_folder_path,
             "folder_update_time": self.folder_update_time,
             "error": str(self.error),

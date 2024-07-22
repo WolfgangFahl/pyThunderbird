@@ -13,7 +13,8 @@ from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
 from nicegui import Client, app, ui, run
 
-from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox
+from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox,\
+    IndexingResult
 from thunderbird.search import MailSearch
 from thunderbird.version import Version
 
@@ -235,28 +236,26 @@ class ThunderbirdSolution(InputWebSolution):
 
         await self.setup_content_div(show_ui)
 
-    def prepare_indexing(self, tb, progress_bar):
+    def run_indexing(self, tb, progress_bar):
         """
-        prepare indexing of mailboxes
+        prepare and run indexing of mailboxes
         """
-        # Prepare mailboxes for indexing
+        def update_grid(ir:IndexingResult,mailbox,message_count:int):
+            """
+            """
+            index=len(update_lod)+1
+            if index==1:
+                self.mailboxes_label.text=ir.msg         
+    
+            mb_record=mailbox.as_view_record(index=index)
+            mb_record["count"]=message_count
+            update_lod.append(mb_record)
+            with self.mailboxes_grid_container:
+                self.mailboxes_grid.load_lod(update_lod)
+                self.mailboxes_grid.sizeColumnsToFit()
         try:
-            all_mailboxes, mailboxes_to_update = tb.prepare_mailboxes_for_indexing(
-                progress_bar=progress_bar
-            )
-            all_count=len(all_mailboxes)
-            update_count=len(mailboxes_to_update)
-            self.mailboxes_label.text=f"{update_count}/{all_count} mailboxes need index update"
             update_lod = []
-            progress_bar.total=update_count
-            progress_bar.reset()
-            for mb in mailboxes_to_update.values():
-                mb_record=mb.as_view_record()
-                update_lod.append(mb_record)
-                progress_bar.update(1)
-                with self.mailboxes_grid_container:
-                    self.mailboxes_grid.load_lod(update_lod)
-                    self.mailboxes_grid.sizeColumnsToFit()
+            tb.create_or_update_index(progress_bar=progress_bar,callback=update_grid)
         except Exception as ex:
             self.handle_exception(ex)
 
@@ -283,7 +282,7 @@ class ThunderbirdSolution(InputWebSolution):
                     self.mailboxes_grid = ListOfDictsGrid(lod=[])
 
         await self.setup_content_div(show_ui)  
-        await run.io_bound(self.prepare_indexing, self.tb, progress_bar=self.progress_bar)
+        await run.io_bound(self.run_indexing, self.tb, progress_bar=self.progress_bar)
 
 
     async def show_folders(self, user: str, profile_key: str) -> None:
