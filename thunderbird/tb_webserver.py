@@ -244,16 +244,28 @@ class ThunderbirdSolution(InputWebSolution):
             all_mailboxes, mailboxes_to_update = tb.prepare_mailboxes_for_indexing(
                 progress_bar=progress_bar
             )
-            update_lod = [mb.to_dict() for mb in mailboxes_to_update.values()]
-            with self.mailboxes_grid_container:
-                self.mailboxes_grid.load_lod(update_lod)
-                self.mailboxes_grid.sizeColumnsToFit()
+            all_count=len(all_mailboxes)
+            update_count=len(mailboxes_to_update)
+            self.mailboxes_label.text=f"{update_count}/{all_count} mailboxes need index update"
+            update_lod = []
+            progress_bar.total=update_count
+            progress_bar.reset()
+            for mb in mailboxes_to_update.values():
+                mb_record=mb.as_view_record()
+                update_lod.append(mb_record)
+                progress_bar.update(1)
+                with self.mailboxes_grid_container:
+                    self.mailboxes_grid.load_lod(update_lod)
+                    self.mailboxes_grid.sizeColumnsToFit()
         except Exception as ex:
             self.handle_exception(ex)
 
     async def create_or_update_index(self, user: str, profile_key: str) -> None:
         
         def show_ui():
+            """
+            show my user interface
+            """
             if user not in self.mail_archives.mail_archives:
                 ui.html(f"Unknown user {user}")
             else:
@@ -262,7 +274,11 @@ class ThunderbirdSolution(InputWebSolution):
                 self.progress_bar = NiceguiProgressbar(
                     total=100, desc="updating index", unit="mailboxes"
                 )
-                with ui.element() as self.mailboxes_grid_container:
+                with ui.row() as self.header_row:
+                    user_info=f"User: {self.user}"
+                    ui.label(user_info)
+                    self.mailboxes_label=ui.label("")
+                with ui.row() as self.mailboxes_grid_container:
                     # Create an instance of ListOfDictsGrid to display mailboxes
                     self.mailboxes_grid = ListOfDictsGrid(lod=[])
 

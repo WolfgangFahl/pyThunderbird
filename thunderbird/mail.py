@@ -774,13 +774,13 @@ class ThunderbirdMailbox:
             folder_path = os.path.join(tb.profile, "Mail/Local Folders", folder_path)
 
         self.folder_path = folder_path
-        self.folder_update_time = self.tb._get_file_update_time(self.folder_path)
-
+    
         self.debug = debug
         self.error = ""
         if not os.path.isfile(folder_path):
             msg = f"{folder_path} does not exist"
             raise ValueError(msg)
+        self.folder_update_time = self.tb._get_file_update_time(self.folder_path)
         self.relative_folder_path = ThunderbirdMailbox.as_relative_path(folder_path)
         self.mbox = mailbox.mbox(folder_path)
         if restore_toc and tb.index_db_exists():
@@ -799,6 +799,15 @@ class ThunderbirdMailbox:
             "relative_folder_path": self.relative_folder_path,
             "folder_update_time": self.folder_update_time,
             "message_count": message_count,
+            "error": str(self.error),
+        }
+        
+    def as_view_record(self):
+        """
+        """
+        return {
+            "path": self.relative_folder_path,
+            "folder_update_time": self.folder_update_time,
             "error": str(self.error),
         }
 
