@@ -275,7 +275,7 @@ class ThunderbirdSolution(InputWebSolution):
                     total=100, desc="updating index", unit="mailboxes"
                 )
                 with ui.row() as self.header_row:
-                    user_info=f"User: {self.user}"
+                    user_info=f"User: {self.user} - {len(self.tb.errors)} errors"
                     ui.label(user_info)
                     self.mailboxes_label=ui.label("")
                 with ui.row() as self.mailboxes_grid_container:
