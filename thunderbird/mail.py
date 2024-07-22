@@ -178,19 +178,6 @@ class Thunderbird(MailArchive):
         Create a dict of Thunderbird mailboxes.
 
         """
-        # Helper function to add mailbox to the dictionary
-        def add_mailbox(node):
-            # Check if the node is at the root level or a .sbd directory node
-            if node["id"] == "1" or node["label"].endswith(".sbd"):
-                return
-            if not node["label"].endswith(".sbd"):  # It's a mailbox
-                mailbox_path = node["value"]
-                mailboxes[mailbox_path] = ThunderbirdMailbox(
-                    self, mailbox_path, restore_toc=restore_toc
-                )
-                if progress_bar:
-                    progress_bar.update(1)
-
         extensions = {"Folder": ".sbd", "Mailbox": ""}
         file_selector = FileSelector(
             path=self.local_folders, extensions=extensions, create_ui=False
@@ -198,18 +185,32 @@ class Thunderbird(MailArchive):
         if progress_bar is not None:
             progress_bar.total = file_selector.file_count
         mailboxes = {}  # Dictionary to store ThunderbirdMailbox instances
-
-        # Define the recursive lambda function for tree traversal
-        traverse_tree = (lambda func: (lambda node: func(func, node)))(
-            lambda self, node: (
-                add_mailbox(node),
-                [self(self, child) for child in node.get("children", [])],
-            )
-        )
-
-        # Traverse the tree and populate the mailboxes dictionary
-        traverse_tree(file_selector.tree_structure)
+        self._traverse_tree(file_selector.tree_structure, mailboxes, progress_bar, restore_toc)
         return mailboxes
+    
+    # Helper function to add mailbox to  dictionary
+    def add_mailbox(self,mailbox_path,mailboxes, progress_bar, restore_toc):
+        """
+        """
+        mailboxes[mailbox_path] = ThunderbirdMailbox(
+            self, mailbox_path, restore_toc=restore_toc
+        )
+        if progress_bar:
+            progress_bar.update(1)
+    
+    def _traverse_tree(self, node, mailboxes, progress_bar, restore_toc):
+        self._process_node(node, mailboxes, progress_bar, restore_toc)
+        for child in node.get("children", []):
+            self._traverse_tree(child, mailboxes, progress_bar, restore_toc)
+            
+    def _process_node(self, node, mailboxes, progress_bar, restore_toc):
+        is_valid_mailbox=node["id"] != "1" and not node["label"].endswith(".sbd")
+        if is_valid_mailbox:
+            try:
+                mailbox_path = node["value"]
+                self._add_mailbox(mailbox_path, mailboxes, progress_bar, restore_toc)
+            except ValueError as e:
+                print(f"Error processing mailbox {node['value']}: {str(e)}")
 
     def get_mailboxes_by_relative_path(self) -> Dict[str, "ThunderbirdMailbox"]:
         """
