@@ -235,6 +235,11 @@ class ThunderbirdSolution(InputWebSolution):
             self.mail_search = MailSearch(self, self.tb, search_dict)
 
         await self.setup_content_div(show_ui)
+        
+    def update_mailboxes_grid(self,update_lod):
+        with self.mailboxes_grid_container:
+            self.mailboxes_grid.load_lod(update_lod)
+            self.mailboxes_grid.sizeColumnsToFit()
 
     def run_indexing(self, tb, progress_bar):
         """
@@ -250,26 +255,40 @@ class ThunderbirdSolution(InputWebSolution):
             mb_record=mailbox.as_view_record(index=index)
             mb_record["count"]=message_count
             update_lod.append(mb_record)
-            with self.mailboxes_grid_container:
-                self.mailboxes_grid.load_lod(update_lod)
-                self.mailboxes_grid.sizeColumnsToFit()
+            self.update_mailboxes_grid(update_lod)
+           
         try:
             update_lod = []
             tb.do_create_or_update_index(ixs=self.ixs,progress_bar=progress_bar,callback=update_grid)
         except Exception as ex:
             self.handle_exception(ex)
-
+            
+    def run_prepare_indexing(self):
+        try:
+            self.tb.prepare_mailboxes_for_indexing(ixs=self.ixs,progress_bar=self.progress_bar)
+            update_lod=self.ixs.get_update_lod()
+            self.update_mailboxes_grid(update_lod)
+        except Exception as ex:
+            self.handle_exception(ex)
+ 
     async def create_or_update_index(self, user: str, profile_key: str) -> None:
         """
         user interface to start create or updating index
         """
+        async def on_prepare():
+            """
+            Handle the prepare button click
+            """
+            # force index db update time
+            self.tb.index_db_update_time=None
+            await run.io_bound(self.run_prepare_indexing)
+            
+            
         async def on_index():
             """
             Handle the reindex button click
             """
             self.ixs.force_create = self.force_create_checkbox.value
-            # force index db update time
-            self.tb.index_db_update_time=None
             self.ixs.needs_update=True
             
             await run.io_bound(self.run_indexing, self.tb, progress_bar=self.progress_bar)
@@ -291,6 +310,7 @@ class ThunderbirdSolution(InputWebSolution):
                     self.state_label=ui.label(self.ixs.state_msg)
                     self.mailboxes_label=ui.label("")
                     self.force_create_checkbox = ui.checkbox("Force Create")
+                    self.prepare_button = ui.button("Prepare", on_click=on_prepare)
                     self.reindex_button = ui.button("Reindex", on_click=on_index)
                 with ui.row() as self.mailboxes_grid_container:
                     # Create an instance of ListOfDictsGrid to display mailboxes

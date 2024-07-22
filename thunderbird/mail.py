@@ -154,13 +154,14 @@ class IndexingState:
             error_rate=0.0
         return error_rate
     
-    def show_index_report(self, verbose: bool, with_print:bool=True)->str:
+    def show_index_report(self, verbose: bool=False, with_print:bool=True)->str:
         """
         Displays a report on the indexing results of email mailboxes.
 
         Args:
             indexing_result (IndexingResult): The result of the indexing process containing detailed results.
             verbose (bool): If True, displays detailed error and success messages.
+            with_print(bool): if True - actually print out the index report
         Returns:
             an indexing report message
         """
@@ -212,6 +213,16 @@ class IndexingState:
             print(summary_msg, file=msg_channel)
             report+="\n"+summary_msg
         return report
+    
+    def get_update_lod(self):
+        """
+        get a list of dict of update records
+        """
+        update_lod = []
+        for i,mailbox in enumerate(self.mailboxes_to_update.values()):
+            mb_record=mailbox.as_view_record(index=i+1) 
+            update_lod.append(mb_record)
+        return update_lod
 
 
 class Thunderbird(MailArchive):
@@ -476,7 +487,7 @@ class Thunderbird(MailArchive):
 
     def prepare_mailboxes_for_indexing(
         self,
-        force_create: bool = False,
+        ixs:IndexingState,
         progress_bar: Optional[Progressbar] = None,
         relative_paths: Optional[List[str]] = None,
     ) -> Tuple[Dict[str, "ThunderbirdMailbox"], Dict[str, "ThunderbirdMailbox"]]:
@@ -488,6 +499,7 @@ class Thunderbird(MailArchive):
         all mailboxes and another containing only the mailboxes that need updating.
 
         Args:
+            ixs:IndexingState: the indexing state to work on
             force_create (bool): Flag to force creation of a new index for all mailboxes.
             progress_bar (Optional[Progressbar]): A progress bar instance for displaying the progress.
             relative_paths (Optional[List[str]]): A list of relative paths for specific mailboxes to update. If None, all mailboxes are considered.
@@ -499,33 +511,33 @@ class Thunderbird(MailArchive):
 
         # optionally Retrieve all mailboxes
         if not relative_paths:
-            all_mailboxes = self.get_mailboxes(progress_bar)
+            ixs.all_mailboxes = self.get_mailboxes(progress_bar)
         else:
-            all_mailboxes = {}
+            ixs.all_mailboxes = {}
             for relative_path in relative_paths:
                 mailbox_path = f"{self.profile}/Mail/Local Folders{relative_path}"
                 mailbox = ThunderbirdMailbox(self, mailbox_path)
-                all_mailboxes[mailbox_path] = mailbox
+                ixs.all_mailboxes[mailbox_path] = mailbox
         # Retrieve the current state of mailboxes from the index database, if not forcing creation
         mailboxes_update_dod = {}
-        if not force_create:
+        if not ixs.force_create:
             mailboxes_update_dod = self.get_mailboxes_dod_from_sqldb(self.index_db)
 
         # List to hold mailboxes that need updating
-        mailboxes_to_update = {}
+        ixs.mailboxes_to_update = {}
 
         # Iterate through each mailbox to check if it needs updating
-        if force_create:
+        if ixs.force_create:
             # If force_create is True, add all mailboxes to the update list
-            for mailbox in all_mailboxes.values():
-                mailboxes_to_update[mailbox.relative_folder_path] = mailbox
+            for mailbox in ixs.all_mailboxes.values():
+                ixs.mailboxes_to_update[mailbox.relative_folder_path] = mailbox
         else:
             if relative_paths is not None:
-                for mailbox in all_mailboxes.values():
+                for mailbox in ixs.all_mailboxes.values():
                     if mailbox.relative_folder_path in relative_paths:
-                        mailboxes_to_update[mailbox.relative_folder_path] = mailbox
+                        ixs.mailboxes_to_update[mailbox.relative_folder_path] = mailbox
             else:
-                for mailbox in all_mailboxes.values():
+                for mailbox in ixs.all_mailboxes.values():
                     # Check update times only if not forcing creation
                     mailbox_info = mailboxes_update_dod.get(
                         mailbox.relative_folder_path, {}
@@ -537,9 +549,12 @@ class Thunderbird(MailArchive):
                     if (
                         self.index_db_update_time is None
                     ) or current_folder_update_time > self.index_db_update_time:
-                        mailboxes_to_update[mailbox.relative_folder_path] = mailbox
-
-        return all_mailboxes, mailboxes_to_update
+                        ixs.mailboxes_to_update[mailbox.relative_folder_path] = mailbox
+        ixs.total_mailboxes = len(ixs.mailboxes_to_update)
+        if progress_bar:
+            progress_bar.total = ixs.total_mailboxes
+            progress_bar.reset()
+            
 
     def get_indexing_state(self, force_create: bool=False) -> IndexingState:
         """
@@ -607,12 +622,10 @@ Index db: {ixs.index_db_update_time}
                     total=ixs.total_mailboxes, desc="create index", unit="mailbox"
                 )
 
-            ixs.all_mailboxes, ixs.mailboxes_to_update = self.prepare_mailboxes_for_indexing(
-                ixs.force_create, progress_bar, relative_paths=relative_paths
+            self.prepare_mailboxes_for_indexing(ixs=ixs,
+               progress_bar=progress_bar, 
+               relative_paths=relative_paths
             )
-            ixs.total_mailboxes = len(ixs.mailboxes_to_update)
-            progress_bar.total = ixs.total_mailboxes
-            progress_bar.reset()
 
             needs_create = ixs.force_create or not self.index_db_exists()
             for mailbox in ixs.mailboxes_to_update.values():
