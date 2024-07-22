@@ -132,13 +132,11 @@ class IndexingResult:
     total_successes: int = 0
     total_errors: int = 0
     error_rate: float = 0.0
+    success: Counter = field(default_factory=Counter) 
     errors: Dict[str, Exception] = field(default_factory=dict)
     gloda_db_update_time: Optional[datetime] = None
     index_db_update_time: Optional[datetime] = None
     msg: str = ""
-    
-    def __post_init__(self):
-        self.success=Counter()
 
     def update_msg(self):
         msg=f"{self.total_successes}/{self.total_mailboxes} updated - {self.total_errors} errors"
