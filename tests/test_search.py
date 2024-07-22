@@ -30,7 +30,8 @@ class TestMailSearch(BaseThunderbirdTest):
         # if we are in a public CI environment
         # we need to create an index database
         if self.inPublicCI() and not tb.index_db_exists():
-            tb.create_or_update_index()
+            ixs=tb.create_or_update_index()
+            ixs.show_index_report()
         search_dict = {
             "Subject": f"{subject}",
             "From": "",
