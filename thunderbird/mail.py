@@ -172,6 +172,7 @@ class Thunderbird(MailArchive):
         pass
         self.index_db = SQLDB(self.index_db_path, check_same_thread=False)
         self.local_folders = f"{self.profile}/Mail/Local Folders"
+        self.errors=[]
 
     def get_mailboxes(self, progress_bar=None, restore_toc: bool = False):
         """
@@ -185,12 +186,13 @@ class Thunderbird(MailArchive):
         if progress_bar is not None:
             progress_bar.total = file_selector.file_count
         mailboxes = {}  # Dictionary to store ThunderbirdMailbox instances
+        self.errors=[]
         self._traverse_tree(file_selector.tree_structure, mailboxes, progress_bar, restore_toc)
         return mailboxes
     
-    # Helper function to add mailbox to  dictionary
-    def add_mailbox(self,mailbox_path,mailboxes, progress_bar, restore_toc):
+    def add_mailbox(self,mailbox_path,mailboxes, progress_bar, restore_toc:bool=False):
         """
+        add a ThunderbirdMailBox for the given mailbox_path to the mailboxes
         """
         mailboxes[mailbox_path] = ThunderbirdMailbox(
             self, mailbox_path, restore_toc=restore_toc
@@ -198,19 +200,26 @@ class Thunderbird(MailArchive):
         if progress_bar:
             progress_bar.update(1)
     
-    def _traverse_tree(self, node, mailboxes, progress_bar, restore_toc):
-        self._process_node(node, mailboxes, progress_bar, restore_toc)
-        for child in node.get("children", []):
+    def _traverse_tree(self, parent, mailboxes, progress_bar, restore_toc):
+        """
+        traves the file system tree from the given parent node
+        """
+        self._add_mailbox_from_node(parent, mailboxes, progress_bar, restore_toc)
+        for child in parent.get("children", []):
             self._traverse_tree(child, mailboxes, progress_bar, restore_toc)
             
-    def _process_node(self, node, mailboxes, progress_bar, restore_toc):
+    def _add_mailbox_from_node(self, node, mailboxes, progress_bar, restore_toc):
+        """
+        add a mailbox from the given file system tree node
+        """
         is_valid_mailbox=node["id"] != "1" and not node["label"].endswith(".sbd")
         if is_valid_mailbox:
             try:
                 mailbox_path = node["value"]
-                self._add_mailbox(mailbox_path, mailboxes, progress_bar, restore_toc)
+                self.add_mailbox(mailbox_path, mailboxes, progress_bar, restore_toc)
             except ValueError as e:
-                print(f"Error processing mailbox {node['value']}: {str(e)}")
+                errmsg=f"{node['value']}: {str(e)}"
+                self.errors.append(errmsg)
 
     def get_mailboxes_by_relative_path(self) -> Dict[str, "ThunderbirdMailbox"]:
         """
