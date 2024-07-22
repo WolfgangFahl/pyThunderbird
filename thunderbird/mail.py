@@ -123,15 +123,16 @@ class MailArchive:
             record = {"#": index, **record}
         return record
 
-
-class IndexingResult:
+@dataclass
+class IndexingState:
     """
-    Result of creating the index_db for all mailboxes
+    State of the index_db for all mailboxes
     """
     total_mailboxes: int = 0
     total_successes: int = 0
     total_errors: int = 0
-    error_rate: float = 0.0
+    force_create: bool = False
+    index_up_to_date = False
     success: Counter = field(default_factory=Counter) 
     errors: Dict[str, Exception] = field(default_factory=dict)
     gloda_db_update_time: Optional[datetime] = None
@@ -152,6 +153,65 @@ class IndexingResult:
         else:
             error_rate=0.0
         return error_rate
+    
+    def show_index_report(self, verbose: bool, with_print:bool=True)->str:
+        """
+        Displays a report on the indexing results of email mailboxes.
+
+        Args:
+            indexing_result (IndexingResult): The result of the indexing process containing detailed results.
+            verbose (bool): If True, displays detailed error and success messages.
+        Returns:
+            an indexing report message
+        """
+        report=""
+        if with_print:
+            print(self.msg)
+            report=self.msg
+        if verbose:
+            # Detailed error messages
+            if self.errors:
+                err_msg = "Errors occurred during index creation:\n"
+                for path, error in self.errors.items():
+                    err_msg += f"Error in {path}: {error}\n"
+                if with_print:
+                    print(err_msg, file=sys.stderr)
+                report+="\n"+err_msg
+
+            # Detailed success messages
+            if self.success:
+                success_msg = "Index created successfully for:\n"
+                for path, count in self.success.items():
+                    success_msg += f"{path}: {count} entries\n"
+                if with_print:
+                    print(success_msg)
+                report+="\n"+success_msg
+
+        # Summary message
+        total_errors = len(self.errors)
+        total_successes = sum(self.success.values())
+        average_success = (
+            (total_successes / len(self.success))
+            if self.success
+            else 0
+        )
+        error_rate = (
+            (total_errors / self.total_mailboxes) * 100
+            if self.total_mailboxes > 0
+            else 0
+        )
+
+        marker = "❌ " if total_errors > 0 else "✅"
+        summary_msg = (
+            f"Indexing completed: {marker}Total indexed messages: {total_successes}, "
+            f"Average messages per successful mailbox: {average_success:.2f}, "
+            f"{total_errors} mailboxes with errors ({error_rate:.2f}%)."
+        )
+        msg_channel = sys.stderr if total_errors > 0 else sys.stdout
+        if self.total_mailboxes > 0:
+            print(summary_msg, file=msg_channel)
+            report+="\n"+summary_msg
+        return report
 
 
 class Thunderbird(MailArchive):
@@ -481,7 +541,7 @@ class Thunderbird(MailArchive):
 
         return all_mailboxes, mailboxes_to_update
 
-    def needs_index_update(self, force_create: bool) -> tuple:
+    def get_indexing_state(self, force_create: bool=False) -> IndexingState:
         """
         Check if the index database needs to be updated or created.
 
@@ -489,7 +549,7 @@ class Thunderbird(MailArchive):
             force_create (bool): Flag to force creation of a new index.
 
         Returns:
-            tuple: A tuple containing the global database update time, index database update time, and a boolean indicating if an update is needed.
+            IndexingState
         """
         gloda_db_update_time = (
             datetime.fromtimestamp(os.path.getmtime(self.gloda_db_path))
@@ -501,55 +561,61 @@ class Thunderbird(MailArchive):
             if self.index_db_exists()
             else None
         )
-
         index_up_to_date = (
             self.index_db_exists() and index_db_update_time > gloda_db_update_time
         )
-
-        needs_update = not index_up_to_date or force_create
-        return gloda_db_update_time, index_db_update_time, needs_update
-
-    def create_or_update_index(
+        ixs=IndexingState(
+            gloda_db_update_time=gloda_db_update_time,
+            index_db_update_time=index_db_update_time,
+            force_create=force_create)
+        ixs.needs_update = not index_up_to_date or force_create
+        marker = "❌ " if ixs.needs_update else "✅"
+        ixs.state_msg = f"""{marker} {self.user} update times:
+Index db: {ixs.index_db_update_time} 
+   Gloda: {ixs.gloda_db_update_time}
+"""
+        return ixs
+    
+    def create_or_update_index(self,
+        relative_paths: Optional[List[str]] = None,
+        force_create:bool=False)->IndexingState:
+        # Initialize IndexingResult
+        ixs=self.get_indexing_state(force_create)
+        self.do_create_or_update_index(ixs,relative_paths=relative_paths)
+        return ixs
+ 
+    def do_create_or_update_index(
         self,
+        ixs:IndexingState,
         progress_bar: Optional[Progressbar] = None,
-        force_create: bool = False,
         relative_paths: Optional[List[str]] = None,
         callback:callable = None
-    ) -> IndexingResult:
+    ) :
         """
         Create or update an index of emails from Thunderbird mailboxes, storing the data in an SQLite database.
         If an index already exists and is up-to-date, this method will update it instead of creating a new one.
 
         Args:
+            ixs:IndexingState: the indexing state to work with
             progress_bar (Progressbar, optional): Progress bar to display the progress of index creation.
-            force_create (bool, optional): If True, forces the creation of a new index even if an up-to-date one exists.
             relative_paths (Optional[List[str]]): List of relative mailbox paths to specifically update. If None, updates all mailboxes or based on `force_create`.
 
-        Returns:
-            IndexingResult: An instance of IndexingResult containing detailed results of the indexing process.
         """
-        # Initialize IndexingResult
-        ir = IndexingResult()
-        (
-            ir.gloda_db_update_time,
-            ir.index_db_update_time,
-            needs_update,
-        ) = self.needs_index_update(force_create)
-        if needs_update or relative_paths:
+        if ixs.needs_update or relative_paths:
             if progress_bar is None:
                 progress_bar = TqdmProgressbar(
-                    total=ir.total_mailboxes, desc="create index", unit="mailbox"
+                    total=ixs.total_mailboxes, desc="create index", unit="mailbox"
                 )
 
-            ir.all_mailboxes, ir.mailboxes_to_update = self.prepare_mailboxes_for_indexing(
-                force_create, progress_bar, relative_paths=relative_paths
+            ixs.all_mailboxes, ixs.mailboxes_to_update = self.prepare_mailboxes_for_indexing(
+                ixs.force_create, progress_bar, relative_paths=relative_paths
             )
-            ir.total_mailboxes = len(ir.mailboxes_to_update)
-            progress_bar.total = ir.total_mailboxes
+            ixs.total_mailboxes = len(ixs.mailboxes_to_update)
+            progress_bar.total = ixs.total_mailboxes
             progress_bar.reset()
 
-            needs_create = force_create or not self.index_db_exists()
-            for mailbox in ir.mailboxes_to_update.values():
+            needs_create = ixs.force_create or not self.index_db_exists()
+            for mailbox in ixs.mailboxes_to_update.values():
                 message_count, exception = self.index_mailbox(
                     mailbox, progress_bar, needs_create
                 )
@@ -560,12 +626,12 @@ class Thunderbird(MailArchive):
 
                 if exception:
                     mailbox.error = exception
-                    ir.errors[mailbox.folder_path] = exception
+                    ixs.errors[mailbox.folder_path] = exception
                 else:
-                    ir.success[mailbox.folder_path] = message_count
-                ir.update_msg()
+                    ixs.success[mailbox.folder_path] = message_count
+                ixs.update_msg()
                 if callback:
-                    callback(ir,mailbox,message_count)
+                    callback(mailbox,message_count)
             # if not relative paths were set we need to recreate the mailboxes table
             needs_create = relative_paths is None
             if relative_paths:
@@ -578,11 +644,11 @@ class Thunderbird(MailArchive):
 
                 # Re-create the list of dictionaries for all selected mailboxes
                 mailboxes_lod = [
-                    mailbox.to_dict() for mailbox in ir.mailboxes_to_update.values()
+                    mailbox.to_dict() for mailbox in ixs.mailboxes_to_update.values()
                 ]
             else:
                 mailboxes_lod = [
-                    mailbox.to_dict() for mailbox in ir.all_mailboxes.values()
+                    mailbox.to_dict() for mailbox in ixs.all_mailboxes.values()
                 ]
             mailboxes_entity_info = self.index_db.createTable(
                 mailboxes_lod,
@@ -594,60 +660,8 @@ class Thunderbird(MailArchive):
             if len(mailboxes_lod) > 0:
                 self.index_db.store(mailboxes_lod, mailboxes_entity_info)
         else:
-            ir.msg = f"""✅ {self.user} update times:
-Index db: {ir.index_db_update_time} 
-   Gloda: {ir.gloda_db_update_time}
-"""
-        return ir
-
-    def show_index_report(self, indexing_result: IndexingResult, verbose: bool):
-        """
-        Displays a report on the indexing results of email mailboxes.
-
-        Args:
-            indexing_result (IndexingResult): The result of the indexing process containing detailed results.
-            verbose (bool): If True, displays detailed error and success messages.
-        """
-        print(indexing_result.msg)
-        if verbose:
-            # Detailed error messages
-            if indexing_result.errors:
-                err_msg = "Errors occurred during index creation:\n"
-                for path, error in indexing_result.errors.items():
-                    err_msg += f"Error in {path}: {error}\n"
-                print(err_msg, file=sys.stderr)
-
-            # Detailed success messages
-            if indexing_result.success:
-                success_msg = "Index created successfully for:\n"
-                for path, count in indexing_result.success.items():
-                    success_msg += f"{path}: {count} entries\n"
-                print(success_msg)
-
-        # Summary message
-        total_errors = len(indexing_result.errors)
-        total_successes = sum(indexing_result.success.values())
-        average_success = (
-            (total_successes / len(indexing_result.success))
-            if indexing_result.success
-            else 0
-        )
-        error_rate = (
-            (total_errors / indexing_result.total_mailboxes) * 100
-            if indexing_result.total_mailboxes > 0
-            else 0
-        )
-
-        marker = "❌ " if total_errors > 0 else "✅"
-        msg_channel = sys.stderr if total_errors > 0 else sys.stdout
-        summary_msg = (
-            f"Indexing completed: {marker}Total indexed messages: {total_successes}, "
-            f"Average messages per successful mailbox: {average_success:.2f}, "
-            f"{total_errors} mailboxes with errors ({error_rate:.2f}%)."
-        )
-        if indexing_result.total_mailboxes > 0:
-            print(summary_msg, file=msg_channel)
-
+            ixs.msg=ixs.state_msg
+            
     @classmethod
     def get_config_path(cls) -> str:
         home = str(Path.home())

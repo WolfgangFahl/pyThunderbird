@@ -14,7 +14,7 @@ from ngwidgets.widgets import HideShow
 from nicegui import Client, app, ui, run
 
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox,\
-    IndexingResult
+    IndexingState
 from thunderbird.search import MailSearch
 from thunderbird.version import Version
 
@@ -240,12 +240,12 @@ class ThunderbirdSolution(InputWebSolution):
         """
         prepare and run indexing of mailboxes
         """
-        def update_grid(ir:IndexingResult,mailbox,message_count:int):
+        def update_grid(mailbox,message_count:int):
             """
             """
             index=len(update_lod)+1
             if index==1:
-                self.mailboxes_label.text=ir.msg         
+                self.mailboxes_label.text=self.ixs.msg         
     
             mb_record=mailbox.as_view_record(index=index)
             mb_record["count"]=message_count
@@ -255,12 +255,25 @@ class ThunderbirdSolution(InputWebSolution):
                 self.mailboxes_grid.sizeColumnsToFit()
         try:
             update_lod = []
-            tb.create_or_update_index(progress_bar=progress_bar,callback=update_grid)
+            tb.do_create_or_update_index(ixs=self.ixs,progress_bar=progress_bar,callback=update_grid)
         except Exception as ex:
             self.handle_exception(ex)
 
     async def create_or_update_index(self, user: str, profile_key: str) -> None:
-        
+        """
+        user interface to start create or updating index
+        """
+        async def on_index():
+            """
+            Handle the reindex button click
+            """
+            self.ixs.force_create = self.force_create_checkbox.value
+            # force index db update time
+            self.tb.index_db_update_time=None
+            self.ixs.needs_update=True
+            
+            await run.io_bound(self.run_indexing, self.tb, progress_bar=self.progress_bar)
+    
         def show_ui():
             """
             show my user interface
@@ -270,13 +283,15 @@ class ThunderbirdSolution(InputWebSolution):
             else:
                 self.user = user
                 self.tb = self.mail_archives.mail_archives[user]
+                self.ixs=self.tb.get_indexing_state()
                 self.progress_bar = NiceguiProgressbar(
                     total=100, desc="updating index", unit="mailboxes"
                 )
                 with ui.row() as self.header_row:
-                    user_info=f"User: {self.user} - {len(self.tb.errors)} errors"
-                    ui.label(user_info)
+                    self.state_label=ui.label(self.ixs.state_msg)
                     self.mailboxes_label=ui.label("")
+                    self.force_create_checkbox = ui.checkbox("Force Create")
+                    self.reindex_button = ui.button("Reindex", on_click=on_index)
                 with ui.row() as self.mailboxes_grid_container:
                     # Create an instance of ListOfDictsGrid to display mailboxes
                     self.mailboxes_grid = ListOfDictsGrid(lod=[])
