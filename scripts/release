@@ -1,18 +1,8 @@
 #!/bin/bash
-# WF 2020-03-26
-# create a release see https://packaging.python.org/tutorials/packaging-projects/
-#
-# get the absolute filename
-#
-get_abs_filename() {
-  # $1 : relative filename
-  echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
-}
+# WF 2024-07-31
+# prepare a release
+scripts/doc -d
 
-pwd=$(pwd)
-scriptPath=$(get_abs_filename $(dirname $0))
-cd $scriptPath/..
-rm -rf dist
-$scriptPath/doc
-python3 setup.py sdist bdist_wheel
-python3 -m twine upload -u __token__ --repository-url https://upload.pypi.org/legacy/ dist/*
+# Commit with a message that includes the current ISO timestamp
+git commit -a -m "release commit"
+git push

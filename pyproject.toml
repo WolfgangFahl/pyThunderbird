@@ -62,9 +62,10 @@ test = [
 profile = "black"
 
 [tool.hatch.build.targets.wheel]
-packages = [
-  "thunderbird",
-]
+only-include = ["thunderbird"]
+
+[tool.hatch.build.targets.wheel.sources]
+"thunderbird" = "thunderbird"
 
 [project.scripts]
 tbmail = "thunderbird.mail_cmd:main"
