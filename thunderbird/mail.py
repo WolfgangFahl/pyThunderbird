@@ -133,7 +133,7 @@ class IndexingState:
     total_errors: int = 0
     force_create: bool = False
     index_up_to_date = False
-    success: Counter = field(default_factory=Counter) 
+    success: Counter = field(default_factory=Counter)
     errors: Dict[str, Exception] = field(default_factory=dict)
     gloda_db_update_time: Optional[datetime] = None
     index_db_update_time: Optional[datetime] = None
@@ -142,7 +142,7 @@ class IndexingState:
     def update_msg(self):
         msg=f"{self.total_successes}/{self.total_mailboxes} updated - {self.total_errors} errors"
         return msg
-    
+
     @property
     def error_rate(self):
         """
@@ -153,7 +153,7 @@ class IndexingState:
         else:
             error_rate=0.0
         return error_rate
-    
+
     def show_index_report(self, verbose: bool=False, with_print:bool=True)->str:
         """
         Displays a report on the indexing results of email mailboxes.
@@ -213,14 +213,14 @@ class IndexingState:
             print(summary_msg, file=msg_channel)
             report+="\n"+summary_msg
         return report
-    
+
     def get_update_lod(self):
         """
         get a list of dict of update records
         """
         update_lod = []
         for i,mailbox in enumerate(self.mailboxes_to_update.values()):
-            mb_record=mailbox.as_view_record(index=i+1) 
+            mb_record=mailbox.as_view_record(index=i+1)
             update_lod.append(mb_record)
         return update_lod
 
@@ -274,7 +274,7 @@ class Thunderbird(MailArchive):
         self.errors=[]
         self._traverse_tree(file_selector.tree_structure, mailboxes, progress_bar, restore_toc)
         return mailboxes
-    
+
     def add_mailbox(self,mailbox_path,mailboxes, progress_bar, restore_toc:bool=False):
         """
         add a ThunderbirdMailBox for the given mailbox_path to the mailboxes
@@ -284,7 +284,7 @@ class Thunderbird(MailArchive):
         )
         if progress_bar:
             progress_bar.update(1)
-    
+
     def _traverse_tree(self, parent, mailboxes, progress_bar, restore_toc):
         """
         traves the file system tree from the given parent node
@@ -292,7 +292,7 @@ class Thunderbird(MailArchive):
         self._add_mailbox_from_node(parent, mailboxes, progress_bar, restore_toc)
         for child in parent.get("children", []):
             self._traverse_tree(child, mailboxes, progress_bar, restore_toc)
-            
+
     def _add_mailbox_from_node(self, node, mailboxes, progress_bar, restore_toc):
         """
         add a mailbox from the given file system tree node
@@ -429,7 +429,7 @@ class Thunderbird(MailArchive):
             dict: A dictionary of mailbox dictionaries, keyed by relative_folder_path.
         """
         sql_query = """SELECT *
-                       FROM mailboxes 
+                       FROM mailboxes
                        ORDER BY folder_update_time DESC"""
         try:
             mailboxes_lod = sql_db.query(sql_query)
@@ -554,7 +554,7 @@ class Thunderbird(MailArchive):
         if progress_bar:
             progress_bar.total = ixs.total_mailboxes
             progress_bar.reset()
-            
+
 
     def get_indexing_state(self, force_create: bool=False) -> IndexingState:
         """
@@ -586,11 +586,11 @@ class Thunderbird(MailArchive):
         ixs.needs_update = not index_up_to_date or force_create
         marker = "❌ " if ixs.needs_update else "✅"
         ixs.state_msg = f"""{marker} {self.user} update times:
-Index db: {ixs.index_db_update_time} 
+Index db: {ixs.index_db_update_time}
    Gloda: {ixs.gloda_db_update_time}
 """
         return ixs
-    
+
     def create_or_update_index(self,
         relative_paths: Optional[List[str]] = None,
         force_create:bool=False)->IndexingState:
@@ -598,7 +598,7 @@ Index db: {ixs.index_db_update_time}
         ixs=self.get_indexing_state(force_create)
         self.do_create_or_update_index(ixs,relative_paths=relative_paths)
         return ixs
- 
+
     def do_create_or_update_index(
         self,
         ixs:IndexingState,
@@ -623,7 +623,7 @@ Index db: {ixs.index_db_update_time}
                 )
 
             self.prepare_mailboxes_for_indexing(ixs=ixs,
-               progress_bar=progress_bar, 
+               progress_bar=progress_bar,
                relative_paths=relative_paths
             )
 
@@ -674,7 +674,7 @@ Index db: {ixs.index_db_update_time}
                 self.index_db.store(mailboxes_lod, mailboxes_entity_info)
         else:
             ixs.msg=ixs.state_msg
-            
+
     @classmethod
     def get_config_path(cls) -> str:
         home = str(Path.home())
@@ -810,7 +810,7 @@ class ThunderbirdMailbox:
             folder_path = os.path.join(tb.profile, "Mail/Local Folders", folder_path)
 
         self.folder_path = folder_path
-    
+
         self.debug = debug
         self.error = ""
         if not os.path.isfile(folder_path):
@@ -837,7 +837,7 @@ class ThunderbirdMailbox:
             "message_count": message_count,
             "error": str(self.error),
         }
-        
+
     def as_view_record(self,index:int):
         """
         return me as dict to view in a list of dicts grid
@@ -894,7 +894,7 @@ class ThunderbirdMailbox:
             list: A list of dictionaries, each containing the index and TOC information for an email.
         """
         sql_query = """SELECT *
-FROM mail_index 
+FROM mail_index
 WHERE folder_path = ?
 ORDER BY email_index"""
         folder_path_param = (self.relative_folder_path,)
@@ -1015,17 +1015,17 @@ ORDER BY email_index"""
     def get_message_by_key(self, messageKey: int) -> Message:
         """
         Retrieves the email message by its message key.
-    
+
         This method fetches an email message based on its unique message key from the mbox mailbox file. It uses the
         `messageKey` to index into the mbox file and retrieve the specific message. The method profiles the time taken
         to fetch the message using the `Profiler` utility class for performance monitoring.
-    
+
         Args:
             messageKey (int): The unique key (index) of the email message to be retrieved.
-    
+
         Returns:
             Message: The email message object corresponding to the specified message key.
-    
+
         Note:
             The `messageKey` is assumed to be 1-based when passed to this function, but the `mailbox.mbox` class uses
             0-based indexing, so 1 is subtracted from `messageKey` for internal use.
@@ -1036,28 +1036,28 @@ ORDER BY email_index"""
         msg = self.mbox.get(messageKey - 1)
         getTime.time()
         return msg
-    
+
     def get_message_by_pos(self, start_pos: int, stop_pos: int) -> Optional[Message]:
         """
         Fetches an email message by its start and stop byte positions in the mailbox file
         and parses it into an email.message.Message object.
-    
+
         Args:
             start_pos (int): The starting byte position of the message in the mailbox file.
             stop_pos (int): The stopping byte position of the message in the mailbox file.
-    
+
         Returns:
             Message: The email message object parsed from the specified byte range,
         Raises:
             FileNotFoundError: If the mailbox file does not exist.
             IOError: If an error occurs during file opening or reading.
             ValueError: If the byte range does not represent a valid email message.
-         
+
         """
         with open(self.folder_path, 'rb') as mbox_file:
             mbox_file.seek(start_pos)  # Move to the start position
             content = mbox_file.read(stop_pos - start_pos)  # Read the specified range
- 
+
             # Parse the content into an email.message.Message object
             msg = message_from_bytes(content)
             return msg
@@ -1224,7 +1224,7 @@ class Mail(object):
         """
         found = False
         self.extract_headers()
-        # workaround awkward mail ID handling 
+        # workaround awkward mail ID handling
         # headers should be case insensitive but in reality they might be not
         # if any message-id fits the self.mailid we'll consider the mail as found
         id_headers = ["Message-ID","Message-Id"]
@@ -1404,13 +1404,13 @@ class Mail(object):
 
         if use_index_db and self.tb.index_db_exists():
             # Query for the index database
-            query = """SELECT * FROM mail_index 
+            query = """SELECT * FROM mail_index
                        WHERE message_id = ?"""
             source = "index_db"
             params = (f"<{self.mailid}>",)
         else:
             # Query for the gloda database
-            query = """SELECT m.*, f.* 
+            query = """SELECT m.*, f.*
                        FROM messages m JOIN
                             folderLocations f ON m.folderId = f.id
                        WHERE m.headerMessageID = (?)"""
