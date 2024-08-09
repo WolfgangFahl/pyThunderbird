@@ -44,6 +44,7 @@
 
 #  global variables
 verbose=false
+version=1.0
 
 #ansi colors
 blue='\033[0;34m'
@@ -97,6 +98,7 @@ usage() {
   echo "  -l, --list     List all Thunderbird profiles"
   echo "  -p, --profile  Check a specific Thunderbird profile"
   echo "  -v, --verbose  Enable verbose output"
+  echo "  -V, --version  show the version"
   exit 1
 }
 
@@ -140,15 +142,69 @@ timestamp_convert() {
     fi
 }
 
-# Modify the get_last_modified_time function to return seconds since epoch
-get_last_modified_time() {
+# Function to return either the last modified time or size of a file based on the specified mode.
+#
+# Parameters:
+#   file (string): The path to the file whose information you want to retrieve.
+#   mode (string): The type of information to retrieve. Accepts two values:
+#                  "modified" - to get the last modified time of the file in seconds since epoch.
+#                  "size" - to get the size of the file in bytes.
+#
+# Returns:
+#   The last modified time in seconds since epoch or the size of the file in bytes, depending on the mode specified.
+#   If an invalid mode is provided, the function will output "Invalid mode" and return 1.
+# Function to return either the last modified time or size based on the mode
+get_file_info() {
     local file="$1"
-    if [[ "$(uname)" == "Darwin" ]]; then
-        stat -f "%m" "$file"
-    else
-        stat -c "%Y" "$file"
-    fi
+    local mode="$2"
+    local stat_cmd
+    local stat_option
+
+    case "$(uname)" in
+        "Darwin")
+            stat_cmd="stat -f"
+            case "$mode" in
+                "modified") stat_option="%m" ;;
+                "size") stat_option="%z" ;;
+                *) echo "Invalid mode" && return 1 ;;
+            esac
+            ;;
+        *)
+            stat_cmd="stat -c"
+            case "$mode" in
+                "modified") stat_option="%Y" ;;
+                "size") stat_option="%s" ;;
+                *) echo "Invalid mode" && return 1 ;;
+            esac
+            ;;
+    esac
+
+    # Execute the stat command with the appropriate option
+    $stat_cmd "$stat_option" "$file"
 }
+
+# Function to return the last modified time of a file in seconds since epoch.
+#
+# Parameters:
+#   file (string): The path to the file whose last modified time you want to retrieve.
+#
+# Returns:
+#   The last modified time of the specified file in seconds since epoch.
+get_last_modified_time() {
+    get_file_info "$1" "modified"
+}
+
+# Function to return the size of a file in bytes.
+#
+# Parameters:
+#   file (string): The path to the file whose size you want to retrieve.
+#
+# Returns:
+#   The size of the specified file in bytes.
+get_size() {
+    get_file_info "$1" "size"
+}
+
 
 # Update the list_profiles function
 list_profiles() {
@@ -176,7 +232,7 @@ list_profiles() {
 suggest_removal_command() {
     local file="$1"
     local older_size="$2"
-    local newer_size="$2"
+    local newer_size="$3"
 
     if [[ "$file" == *.sbd ]]; then
         local item_count=$(find "$file" -mindepth 1 | wc -l)
@@ -193,11 +249,11 @@ suggest_removal_command() {
         fi
     else
         if [ "$older_size" \< "$newer_size" ]; then
-            positive "$older_size smaller than $newer_size"
+            positive "older $older_size smaller than newer $newer_size"
         elif [ "$older_size" == "$newer_size" ]; then
             positive "$older_size same as $newer_size"
         else
-            negative "Older $older_size larger than $newer_size"
+            negative "older $older_size larger than newer $newer_size"
         fi
         echo "rm '$file'"
     fi
@@ -262,7 +318,6 @@ get_profile_paths() {
 }
 
 
-
 # Find thunderbird duplicates
 # Searches for duplicate .sbd and .msf files in the given Thunderbird profile
 # Counts the number of duplicates and provides a summary
@@ -298,7 +353,8 @@ find_thunderbird_duplicates() {
             local older_time=""
             local newer_time=""
             while read -r dup; do
-              size=$(du -sh "$dup" | cut -f1)
+              size_human=$(du -sh "$dup" | cut -f1)
+              size=$(get_size "$dup")
               timestamp_seconds=$(get_last_modified_time "$dup")
               timestamp=$(timestamp_convert from_seconds "$timestamp_seconds")
               echo "    Path: ${dup#$profile_path/}"
@@ -410,6 +466,10 @@ else
                 ;;
             -v|--verbose)
                verbose=true
+               ;;
+            -V|--version)
+               echo "$version"
+               exit 1
                ;;
             *)
                 error "Unknown option $1"
