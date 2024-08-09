@@ -248,14 +248,12 @@ suggest_removal_command() {
             echo "rm -rf '$file'"
         fi
     else
-        if [ "$older_size" \< "$newer_size" ]; then
-            positive "older $older_size smaller than newer $newer_size"
-        elif [ "$older_size" == "$newer_size" ]; then
-            positive "$older_size same as $newer_size"
-        else
-            negative "older $older_size larger than newer $newer_size"
-        fi
-        echo "rm '$file'"
+      if [ "$older_size" -gt "$newer_size" ]; then
+        negative "older $older_size larger than newer $newer_size"
+      else
+        positive "older $older_size smaller than or equal to newer $newer_size"
+      fi
+      echo "rm '$file'"
     fi
 }
 
