@@ -331,8 +331,6 @@ find_thunderbird_duplicates() {
     local profile_path="$2"
     local duplicate_count=0
 
-    color_msg $blue "Checking profile: $profile_name"
-
     [ -d "$profile_path" ] || { negative "Profile path $profile_path does not exist."; return 1; }
 
     set_permissions "$profile_path"
@@ -402,6 +400,7 @@ find_all_thunderbird_duplicates() {
    fi
 
     while IFS=' ' read -r profile_name profile_path; do
+        color_msg $blue "Checking profile: $profile_name"
         find_thunderbird_duplicates "$profile_name" "$profile_path" >> "$temp_file"
         echo >> "$temp_file"  # Add a blank line between profiles
     done <<< "$profiles"
@@ -434,7 +433,7 @@ find_specific_thunderbird_duplicates() {
         negative "Profile $profile_name not found in the YAML file."
         exit 1
     fi
-
+    color_msg $blue "Checking profile: $profile_name"
     find_thunderbird_duplicates "$profile_name" "$profile_path"
 }
 
