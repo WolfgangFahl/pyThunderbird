@@ -205,25 +205,30 @@ suggest_removal_command() {
 
 # Check for empty .sbd folders and suggest removal
 # params:
-#   profile_path: The full path to the Thunderbird profile
+#   root_path: The root path to start the search e.g. Mail/Local Folders in the Thunderbird profile path
 check_empty_sbd_folders() {
-    local profile_path="$1"
+    local root_path="$1"
+    if $verbose; then
+      color_msg $blue "checking for empty folders in $root_path"
+    fi
     local empty_folders=()
 
     while IFS= read -r -d '' folder; do
         if [ -z "$(ls -A "$folder")" ]; then
             empty_folders+=("$folder")
         fi
-    done < <(find "$profile_path" -type d -name "*.sbd" -print0)
+    done < <(find "$root_path" -type d -name "*.sbd" -print0)
 
     if [ ${#empty_folders[@]} -gt 0 ]; then
-        negative "Found empty .sbd folders:"
+        negative "Found ${#empty_folders[@]} empty .sbd folders:"
         for folder in "${empty_folders[@]}"; do
             echo "  $folder"
             if $verbose; then
               suggest_removal_command "$folder" 0 0
             fi
         done
+    else
+       positive "No empty .sbd folders found"
     fi
 }
 
@@ -272,9 +277,6 @@ find_thunderbird_duplicates() {
     local duplicate_count=0
 
     color_msg $blue "Checking profile: $profile_name"
-    if $verbose; then
-        echo "cd '$profile_path/Mail/Local Folders'"
-    fi
 
     [ -d "$profile_path" ] || { negative "Profile path $profile_path does not exist."; return 1; }
 
