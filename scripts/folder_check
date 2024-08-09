@@ -1,28 +1,46 @@
 #!/bin/bash
-# WF 2024-08-09 supported by Claude 3.5 Sonnet (Anthropic AI) v3.5
-# Prompt: i have moved thunderbird folders locally and then did an rsync to a server.
-# I fear that there are now duplicate folders on the target machine and would like to check with a bash script
+# Thunderbird Duplicate Folder Checker
+# Author: WF 2024-08-09 supported by Claude 3.5 Sonnet (Anthropic AI) v3.5
 #
-# first we need to change the permissions with a
-#  sudo chgrp -R using id -gn and then the listing must be much clearer -
-# the users name should be displayed for the profile and we do not need
-#  verbose prefixes and the long paths - we need to have info about
-# actual duplicates which are .sbd and .msf files - we are talking thunderbird folders and not file system folders here!
-
-# Hint: The profile names can be read from $HOME/.thunderbird/thunderbird.yaml
-# Example content of thunderbird.yaml:
-# WF 2023-02-01
-# wf:
-#   db: /backup/hosts/fix.bitplan.com/wf/Library/Thunderbird/Profiles/kio48bfn.default/global-messages-db.sqlite
-#   profile: /backup/hosts/fix.bitplan.com/wf/Library/Thunderbird/Profiles/kio48bfn.default
-# muf:
-#   db: /backup/hosts/island.bitplan.com/muf/Library/Thunderbird/Profiles/scw9duis.default/global-messages-db.sqlite
-#   profile: /backup/hosts/island.bitplan.com/muf/Library/Thunderbird/Profiles/scw9duis.default
+# Purpose:
+# This script checks for duplicate folders in Thunderbird profiles after moving folders
+# locally and using rsync to sync them to a server.
 #
-# Each duplicate is a pair of files, not a single instance.
-# We need to see the difference in metadata side by side for comparison.
-# The Last modified date should be shortened to YYYY-MM-DD HH:MM format.
-
+# Features:
+# - Checks for duplicate .sbd and .msf files in Thunderbird profiles
+# - Works with multiple profiles or a specific profile
+# - Provides detailed information about duplicates, including size and last modified date
+# - Suggests removal commands for duplicates in verbose mode
+# - Checks for empty .sbd folders
+# - Cross-platform compatibility (macOS, Linux, Windows with Cygwin)
+#
+# Usage: ./thunderbird_duplicate_checker.sh [OPTIONS]
+# Options:
+#   -a, --all      Check all Thunderbird profiles
+#   -d, --debug    Enable debug mode
+#   -h, --help     Show help message
+#   -l, --list     List all Thunderbird profiles
+#   -p, --profile  Check a specific Thunderbird profile
+#   -v, --verbose  Enable verbose output
+#
+# Required input:
+# - Thunderbird profile information, typically stored in $HOME/.thunderbird/thunderbird.yaml
+#   If not found, the script will attempt to locate profiles in the OS-specific default location
+#
+# Example thunderbird.yaml content:
+# johndoe:
+#   db: /home/johndoe/.thunderbird/9thuz5md.tbmaildemo/global-messages-db.sqlite
+#   profile: /home/johndoe/.thunderbird/9thuz5md.tbmaildemo
+# janedoe:
+#   db: /home/janedoe/.thunderbird/a1b2c3d4.default/global-messages-db.sqlite
+#   profile: /home/janedoe/.thunderbird/a1b2c3d4.default
+#
+# Notes:
+# - Requires sudo access to change group ownership and permissions of Thunderbird profile directories
+# - Uses ANSI colors for output formatting
+# - Timestamps are displayed in YYYY-MM-DD HH:MM format
+# - In verbose mode, suggests removal commands for duplicate files, with special handling for .sbd directories
+#
 
 #  global variables
 verbose=false
@@ -98,33 +116,28 @@ set_permissions() {
     sudo chmod -R g+rX "$dir"
 }
 
-# Convert a timestamp to seconds since epoch in a cross-platform manner
+# Convert between timestamp and seconds since epoch in a cross-platform manner
 # params:
-#   timestamp: The timestamp to convert (format: "YYYY-MM-DD HH:MM")
+#   mode: 'to_seconds' or 'from_seconds'
+#   value: The timestamp (YYYY-MM-DD HH:MM) or seconds since epoch, depending on mode
 # returns:
-#   The number of seconds since the epoch
-timestamp_to_seconds() {
-    local timestamp="$1"
+#   Seconds since epoch or formatted timestamp, depending on mode
+timestamp_convert() {
+    local mode="$1"
+    local value="$2"
     if [[ "$(uname)" == "Darwin" ]]; then
-        date -j -f "%Y-%m-%d %H:%M" "$timestamp" "+%s"
+        if [[ "$mode" == "to_seconds" ]]; then
+            date -j -f "%Y-%m-%d %H:%M" "$value" "+%s"
+        else
+            date -r "$value" "+%Y-%m-%d %H:%M"
+        fi
     else
-        date -d "$timestamp" "+%s"
+        if [[ "$mode" == "to_seconds" ]]; then
+            date -d "$value" "+%s"
+        else
+            date -d "@$value" "+%Y-%m-%d %H:%M"
+        fi
     fi
-}
-
-# Compare two timestamps in a cross-platform manner
-# Returns true if timestamp1 is earlier than timestamp2
-# params:
-#   timestamp1: The first timestamp to compare (format: "YYYY-MM-DD HH:MM")
-#   timestamp2: The second timestamp to compare (format: "YYYY-MM-DD HH:MM")
-# returns:
-#   0 (true) if timestamp1 is earlier than timestamp2, 1 (false) otherwise
-compare_timestamps() {
-    local timestamp1="$1"
-    local timestamp2="$2"
-    local seconds1=$(timestamp_to_seconds "$timestamp1")
-    local seconds2=$(timestamp_to_seconds "$timestamp2")
-    [ "$seconds1" -lt "$seconds2" ]
 }
 
 # Modify the get_last_modified_time function to return seconds since epoch
@@ -155,11 +168,16 @@ list_profiles() {
 # Provides different suggestions for .sbd directories and regular files
 #   params:
 #     file: The full path of the file or directory to be removed
+#     older_size: the size of the file to be removed
+#     newer_size: the size of the duplicate that stays
 #
 # Output:
 #   Prints suggested removal command(s) to stdout
 suggest_removal_command() {
     local file="$1"
+    local older_size="$2"
+    local newer_size="$2"
+
     if [[ "$file" == *.sbd ]]; then
         local item_count=$(find "$file" -mindepth 1 | wc -l)
         if [ "$item_count" -eq 0 ]; then
@@ -174,6 +192,13 @@ suggest_removal_command() {
             echo "rm -rf '$file'"
         fi
     else
+        if [ "$older_size" \< "$newer_size" ]; then
+            positive "$older_size smaller than $newer_size"
+        elif [ "$older_size" == "$newer_size" ]; then
+            positive "$older_size same as $newer_size"
+        else
+            negative "Older $older_size larger than $newer_size"
+        fi
         echo "rm '$file'"
     fi
 }
@@ -196,7 +221,7 @@ check_empty_sbd_folders() {
         for folder in "${empty_folders[@]}"; do
             echo "  $folder"
             if $verbose; then
-              suggest_removal_command "$folder"
+              suggest_removal_command "$folder" 0 0
             fi
         done
     fi
@@ -273,7 +298,7 @@ find_thunderbird_duplicates() {
             while read -r dup; do
               size=$(du -sh "$dup" | cut -f1)
               timestamp_seconds=$(get_last_modified_time "$dup")
-              timestamp=$(date -r "$timestamp_seconds" "+%Y-%m-%d %H:%M")
+              timestamp=$(timestamp_convert from_seconds "$timestamp_seconds")
               echo "    Path: ${dup#$profile_path/}"
               echo "    Size: $size"
               echo "    Last modified: $timestamp"
@@ -290,15 +315,10 @@ find_thunderbird_duplicates() {
                   newer_time_seconds="$timestamp_seconds"
               fi
           done <<< "$duplicates"
-            echo
-            if $verbose; then
-              echo "Suggested fix:"
-              if [ "$older_size" \< "$newer_size" ]; then
-                suggest_removal_command "$older_file"
-              else
-                suggest_removal_command "$newer_file"
-              fi
-              echo
+          echo
+          if $verbose; then
+            echo "Suggested fix:"
+            suggest_removal_command "$older_file" "$older_size"  "$newer_size"
           fi
         fi
     done < <(find "$profile_path" \( -name "*.sbd" -o -name "*.msf" \))
