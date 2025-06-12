@@ -477,11 +477,15 @@ class Thunderbird(MailArchive):
                 delete_cmd = f"DELETE FROM mail_index WHERE folder_path='{mailbox.relative_folder_path}'"
                 self.index_db.execute(delete_cmd)
                 # then store the new ones
+                # ignore warnings
+                mbox_entity_info.quiet=True
                 self.index_db.store(mbox_lod, mbox_entity_info, fixNone=True)
 
         except Exception as ex:
             exception = ex
-
+        finally:
+            if mailbox:
+                mailbox.close()     #  ensure mailbox is closed
         progress_bar.update(1)  # Update the progress bar after processing each mailbox
         return message_count, exception  # Single return statement
 
@@ -599,6 +603,20 @@ Index db: {ixs.index_db_update_time}
         self.do_create_or_update_index(ixs,relative_paths=relative_paths)
         return ixs
 
+    def mailboxes_to_lod(self, mailbox_dict: Dict[str, Any], progress_bar: Optional[Progressbar] = None) -> List[Dict[str, Any]]:
+        """
+        Convert a dictionary of mailbox objects to a list of dicts, updating progress if provided.
+        """
+        lod = []
+        if progress_bar:
+            progress_bar.reset(total=len(mailbox_dict))
+        for mbox in mailbox_dict.values():
+            record = mbox.to_dict()
+            lod.append(record)
+            if progress_bar:
+                progress_bar.update(1)
+        return lod
+
     def do_create_or_update_index(
         self,
         ixs:IndexingState,
@@ -619,7 +637,7 @@ Index db: {ixs.index_db_update_time}
         if ixs.needs_update or relative_paths:
             if progress_bar is None:
                 progress_bar = TqdmProgressbar(
-                    total=ixs.total_mailboxes, desc="create index", unit="mailbox"
+                    total=ixs.total_mailboxes, desc="create index", unit=" mailbox"
                 )
 
             self.prepare_mailboxes_for_indexing(ixs=ixs,
@@ -656,13 +674,9 @@ Index db: {ixs.index_db_update_time}
                     self.index_db.execute(delete_query)
 
                 # Re-create the list of dictionaries for all selected mailboxes
-                mailboxes_lod = [
-                    mailbox.to_dict() for mailbox in ixs.mailboxes_to_update.values()
-                ]
+                mailboxes_lod = self.mailboxes_to_lod(ixs.mailboxes_to_update,progress_bar=progress_bar)
             else:
-                mailboxes_lod = [
-                    mailbox.to_dict() for mailbox in ixs.all_mailboxes.values()
-                ]
+                mailboxes_lod = self.mailboxes_to_lod(ixs.all_mailboxes,progress_bar=progress_bar)
             mailboxes_entity_info = self.index_db.createTable(
                 mailboxes_lod,
                 "mailboxes",
@@ -670,6 +684,7 @@ Index db: {ixs.index_db_update_time}
                 withDrop=needs_create,
             )
             # Store the mailbox data in the 'mailboxes' table
+            mailboxes_entity_info.quiet=True
             if len(mailboxes_lod) > 0:
                 self.index_db.store(mailboxes_lod, mailboxes_entity_info)
         else:
@@ -700,6 +715,11 @@ Index db: {ixs.index_db_update_time}
         profiles_path = cls.get_profiles_path()
         with open(profiles_path, "r") as stream:
             profile_map = yaml.safe_load(stream)
+            # expand ~ in all paths
+            for _user, entry in profile_map.items():
+                for key in ["db", "profile"]:
+                    if key in entry:
+                        entry[key] = os.path.expanduser(entry[key])
         return profile_map
 
     @staticmethod
@@ -720,6 +740,29 @@ Index db: {ixs.index_db_update_time}
         records = self.sqlDB.query(sql_query, params)
         return records
 
+    def search_mailid_like(self, pattern: str) -> List[Dict[str, Any]]:
+        """
+        Search for mail headerMessageIDs matching the given SQL LIKE pattern.
+
+        Args:
+            pattern (str): SQL LIKE pattern, e.g. '%discourse%'
+
+        Returns:
+            List[Dict[str, Any]]: list of matching mail records
+        """
+        query = """
+        SELECT
+          strftime('%Y-%m-%d %H:%M:%S', m.date / 1000000, 'unixepoch') AS date,
+          m.headerMessageID,
+          fl.name AS folder_name,
+          fl.folderURI AS folder_uri
+        FROM messages m
+        JOIN folderLocations fl ON m.folderID = fl.id
+        WHERE m.headerMessageID LIKE ?
+        ORDER BY m.date DESC
+        """
+        records = self.query(query, (pattern,))
+        return records
 
 class MailArchives:
     """
@@ -1083,10 +1126,9 @@ ORDER BY email_index"""
 
     def close(self):
         """
-        close the mailbox
+        Properly close the mailbox
         """
         self.mbox.close()
-
 
 @dataclass
 class MailLookup:

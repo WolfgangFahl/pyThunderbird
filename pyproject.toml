@@ -15,27 +15,27 @@ maintainers = [
 ]
 
 dependencies= [
-	"pylodstorage>=0.12.2",
+	"pylodstorage>=0.16.4",
 	"PyYAML>=6.0",
 	# https://github.com/WolfgangFahl/nicegui_widgets
-	"ngwidgets>=0.17.2",
+	"ngwidgets>=0.25.0",
 	# ftfy 6.1.3
 	"ftfy>=6.1.3",
 ]
 
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dynamic = ["version"]
 
 classifiers=[
     "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Intended Audience :: Developers",

@@ -41,6 +41,10 @@ class ThunderbirdMailCmd(WebserverCmd):
             help="create an alternative index for the given list of relative mailbox paths",
         )
         parser.add_argument(
+            "-ml", "--mailid-like",
+            help="SQL LIKE-style wildcard search for matching mail IDs"
+        )
+        parser.add_argument(
             "-f",
             "--force",
             action="store_true",
@@ -94,6 +98,22 @@ class ThunderbirdMailCmd(WebserverCmd):
             else:
                 msg = f"mail with id {args.mailid} for user {args.user} not found"
                 print(msg, files=sys.stderr)
+                self.exit_code = 1
+        elif args.mailid_like:
+            tb = Thunderbird.get(args.user)
+            records = tb.search_mailid_like(f"%{args.mailid_like}%")
+            if records:
+                for record in records:
+                    line=""
+                    delim=""
+                    for key, value in record.items():
+                        line+=f"{delim}{key}={value}"
+                        delim="📂" if delim=="" else "|"
+                    print (line)
+                return True
+            else:
+                msg = f"❌ no mails matching '{args.mailid_like}' for user {args.user}"
+                print(msg, file=sys.stderr)
                 self.exit_code = 1
 
 

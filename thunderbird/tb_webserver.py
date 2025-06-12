@@ -359,7 +359,7 @@ class ThunderbirdSolution(InputWebSolution):
         """
         relative_path = ThunderbirdMailbox.as_relative_path(folder_path)
         url = f"/folder/{self.user}{relative_path}"
-        return ui.open(url, new_tab=True)
+        return ui.navigate.to(url, new_tab=True)
 
     async def show_folder(self, user, folder_path: str):
         """
