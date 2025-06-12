@@ -609,7 +609,8 @@ Index db: {ixs.index_db_update_time}
         """
         lod = []
         if progress_bar:
-            progress_bar.reset(len(mailbox_dict))
+            progress_bar.total = len(mailbox_dict)
+            progress_bar.reset()
         for mbox in mailbox_dict.values():
             record = mbox.to_dict()
             lod.append(record)
@@ -637,10 +638,13 @@ Index db: {ixs.index_db_update_time}
         if ixs.needs_update or relative_paths:
             if progress_bar is None:
                 progress_bar = TqdmProgressbar(
-                    total=ixs.total_mailboxes, desc="create index", unit=" mailbox"
+                    total=ixs.total_mailboxes,
+                    desc="create index",
+                    unit=" mailbox"
                 )
 
-            self.prepare_mailboxes_for_indexing(ixs=ixs,
+            self.prepare_mailboxes_for_indexing(
+               ixs=ixs,
                progress_bar=progress_bar,
                relative_paths=relative_paths
             )
