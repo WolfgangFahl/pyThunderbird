@@ -609,7 +609,7 @@ Index db: {ixs.index_db_update_time}
         """
         lod = []
         if progress_bar:
-            progress_bar.reset(total=len(mailbox_dict))
+            progress_bar.reset(len(mailbox_dict))
         for mbox in mailbox_dict.values():
             record = mbox.to_dict()
             lod.append(record)
