@@ -32,8 +32,8 @@ class ThunderbirdWebserver(InputWebserver):
         """
         copy_right = "(c)2020-2024 Wolfgang Fahl"
         config = WebserverConfig(
-            copy_right=copy_right, 
-            version=Version(), 
+            copy_right=copy_right,
+            version=Version(),
             short_name="tbmail",
             default_port=8482,
             timeout=15.0
@@ -41,12 +41,12 @@ class ThunderbirdWebserver(InputWebserver):
         server_config = WebserverConfig.get(config)
         server_config.solution_class = ThunderbirdSolution
         return server_config
-        
+
 
     def __init__(self):
         """Constructor"""
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
-        
+
         @app.get("/part/{user}/{mailid}/{part_index:int}")
         async def get_part(user: str, mailid: str, part_index: int):
             return await self.get_part(
@@ -64,6 +64,12 @@ class ThunderbirdWebserver(InputWebserver):
                 raise HTTPException(status_code=404, detail=html_markup)
             response = Response(content=mail.asWikiMarkup(), media_type="text/plain")
             return response
+
+        @ui.page("/mailq/{user}")
+        async def showMailWithQuery(client: Client, user: str):
+            mailid = client.request.query_params.get("mailid")
+            return await self.page(client, ThunderbirdSolution.showMail, user, mailid)
+
 
         @ui.page("/mail/{user}/{mailid}")
         async def showMail(client: Client,user: str, mailid: str):
@@ -125,14 +131,14 @@ class ThunderbirdWebserver(InputWebserver):
     def get_mail(self, user: str, mailid: str) -> Any:
         """
         Retrieves a specific mail for a given user by its mail identifier.
-    
+
         Args:
             user (str): The username of the individual whose mail is to be retrieved.
             mailid (str): The unique identifier for the mail to be retrieved.
-    
+
         Returns:
             Any: Returns an instance of the Mail class corresponding to the specified `mailid` for the `user`.
-    
+
         Raises:
             HTTPException: If the user is not found in the mail archives, an HTTP exception with status code 404 is raised.
         """
@@ -141,23 +147,23 @@ class ThunderbirdWebserver(InputWebserver):
         tb = self.mail_archives.mail_archives[user]
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
         return mail
-    
+
     async def get_part(self, user: str, mailid: str, part_index: int) -> FileResponse:
         """
         Asynchronously retrieves a specific part of a mail for a given user, identified by the mail's unique ID and the part index.
-    
+
         Args:
             user (str): The username of the individual whose mail part is to be retrieved.
             mailid (str): The unique identifier for the mail whose part is to be retrieved.
             part_index (int): The index of the part within the mail to retrieve.
-    
+
         Returns:
             FileResponse: A file response object containing the specified part of the mail.
-    
+
         Raises:
             HTTPException: If the user or the specified mail part does not exist, an HTTP exception could be raised.
-    
-       """      
+
+       """
         tb = self.mail_archives.mail_archives[user]
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
         response = mail.part_as_fileresponse(part_index)
@@ -235,7 +241,7 @@ class ThunderbirdSolution(InputWebSolution):
             self.mail_search = MailSearch(self, self.tb, search_dict)
 
         await self.setup_content_div(show_ui)
-        
+
     def update_mailboxes_grid(self,update_lod):
         with self.mailboxes_grid_container:
             self.mailboxes_grid.load_lod(update_lod)
@@ -250,19 +256,19 @@ class ThunderbirdSolution(InputWebSolution):
             """
             index=len(update_lod)+1
             if index==1:
-                self.mailboxes_label.text=self.ixs.msg         
-    
+                self.mailboxes_label.text=self.ixs.msg
+
             mb_record=mailbox.as_view_record(index=index)
             mb_record["count"]=message_count
             update_lod.append(mb_record)
             self.update_mailboxes_grid(update_lod)
-           
+
         try:
             update_lod = []
             tb.do_create_or_update_index(ixs=self.ixs,progress_bar=progress_bar,callback=update_grid)
         except Exception as ex:
             self.handle_exception(ex)
-            
+
     def run_prepare_indexing(self):
         try:
             self.tb.prepare_mailboxes_for_indexing(ixs=self.ixs,progress_bar=self.progress_bar)
@@ -270,7 +276,7 @@ class ThunderbirdSolution(InputWebSolution):
             self.update_mailboxes_grid(update_lod)
         except Exception as ex:
             self.handle_exception(ex)
- 
+
     async def create_or_update_index(self, user: str, profile_key: str) -> None:
         """
         user interface to start create or updating index
@@ -282,17 +288,17 @@ class ThunderbirdSolution(InputWebSolution):
             # force index db update time
             self.tb.index_db_update_time=None
             await run.io_bound(self.run_prepare_indexing)
-            
-            
+
+
         async def on_index():
             """
             Handle the reindex button click
             """
             self.ixs.force_create = self.force_create_checkbox.value
             self.ixs.needs_update=True
-            
+
             await run.io_bound(self.run_indexing, self.tb, progress_bar=self.progress_bar)
-    
+
         def show_ui():
             """
             show my user interface
@@ -316,7 +322,7 @@ class ThunderbirdSolution(InputWebSolution):
                     # Create an instance of ListOfDictsGrid to display mailboxes
                     self.mailboxes_grid = ListOfDictsGrid(lod=[])
 
-        await self.setup_content_div(show_ui)  
+        await self.setup_content_div(show_ui)
         await run.io_bound(self.run_indexing, self.tb, progress_bar=self.progress_bar)
 
 
@@ -359,7 +365,7 @@ class ThunderbirdSolution(InputWebSolution):
         """
         show the folder with the given path
         """
-        
+
         def show_index():
             try:
                 index_lod = self.folder_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
@@ -409,7 +415,7 @@ class ThunderbirdSolution(InputWebSolution):
                             section.update()
             except Exception as ex:
                 self.handle_exception(ex)
-                
+
         async def show():
             try:
                 self.sections = {}
@@ -440,14 +446,14 @@ class ThunderbirdSolution(InputWebSolution):
                         )
                     for section_name in section_names:
                         self.sections[section_name].set_content(ui.html())
-                    
+
                 else:
                     self.mail_view = ui.html(f"unknown user {user}")
             except Exception as ex:
                 self.handle_exception(ex)
 
         await self.setup_content_div(show)
-        await run.io_bound(get_mail)  
+        await run.io_bound(get_mail)
 
     def setup_content(self):
         """
