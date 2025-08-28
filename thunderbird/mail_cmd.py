@@ -46,7 +46,7 @@ class ThunderbirdMailCmd(WebserverCmd):
         )
         return parser
 
-    def handle_args(self) -> bool:
+    def handle_args(self,args) -> bool:
         """
         Handles command line arguments.
 
@@ -58,10 +58,7 @@ class ThunderbirdMailCmd(WebserverCmd):
             bool: True if the arguments are processed successfully, False otherwise.
         """
         # Calling the superclass constructor or method, if needed
-        super().handle_args()
-
-        args = self.args
-
+        super().handle_args(args)
         # Check if both user and id arguments are provided
         if args.user is None:
             if args.mailid is None and not args.create_index:
