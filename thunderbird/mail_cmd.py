@@ -44,18 +44,6 @@ class ThunderbirdMailCmd(WebserverCmd):
             "-ml", "--mailid-like",
             help="SQL LIKE-style wildcard search for matching mail IDs"
         )
-        parser.add_argument(
-            "-f",
-            "--force",
-            action="store_true",
-            help="force the creation of a new index even if one already exists",
-        )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            action="store_true",
-            help="show verbose infos e.g. on startup [default: %(default)s]",
-        )
         return parser
 
     def handle_args(self) -> bool:
