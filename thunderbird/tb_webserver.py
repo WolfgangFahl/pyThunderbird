@@ -187,6 +187,7 @@ class ThunderbirdSolution(InputWebSolution):
         super().__init__(webserver, client)  # Call to the superclass constructor
         self.tb = None
         self.mail_archives=self.webserver.mail_archives
+        self.folder_mbox=None
 
     async def show_mailboxes(self, user: str, profile_key: str):
         """
@@ -367,6 +368,9 @@ class ThunderbirdSolution(InputWebSolution):
         """
 
         def show_index():
+            if self.folder_mbox is None:
+                ui.notify("nothing to index")
+                return
             try:
                 index_lod = self.folder_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
                 view_lod = ThunderbirdMailbox.to_view_lod(index_lod, user)
@@ -379,13 +383,16 @@ class ThunderbirdSolution(InputWebSolution):
                 self.handle_exception(ex)
 
         def show():
-            self.tb = Thunderbird.get(user)
-            self.folder_mbox = ThunderbirdMailbox(self.tb, folder_path, use_relative_path=True)
-            self.folder_view = ui.html()
-            self.folder_view.content = f"Loading {self.folder_mbox.relative_folder_path} ..."
-            grid_config = GridConfig(key_col="email_index")
-            self.folder_grid = ListOfDictsGrid(config=grid_config)
-            self.folder_grid.html_columns = [1, 2]
+            try:
+                self.tb = Thunderbird.get(user)
+                self.folder_mbox = ThunderbirdMailbox(self.tb, folder_path, use_relative_path=True)
+                self.folder_view = ui.html()
+                self.folder_view.content = f"Loading {self.folder_mbox.relative_folder_path} ..."
+                grid_config = GridConfig(key_col="email_index")
+                self.folder_grid = ListOfDictsGrid(config=grid_config)
+                self.folder_grid.html_columns = [1, 2]
+            except Exception as ex:
+                self.handle_exception(ex)
 
         await self.setup_content_div(show)
         await run.io_bound(show_index)
