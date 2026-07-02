@@ -302,7 +302,7 @@ class Thunderbird(MailArchive):
             try:
                 mailbox_path = node["value"]
                 self.add_mailbox(mailbox_path, mailboxes, progress_bar, restore_toc)
-            except ValueError as e:
+            except (ValueError, OSError) as e:
                 errmsg=f"{node['value']}: {str(e)}"
                 self.errors.append(errmsg)
 
