@@ -546,13 +546,21 @@ class Thunderbird(MailArchive):
                     mailbox_info = mailboxes_update_dod.get(
                         mailbox.relative_folder_path, {}
                     )
-                    _prev_mailbox_update_time = mailbox_info.get("folder_update_time")
+                    prev_mailbox_update_time = mailbox_info.get("folder_update_time")
                     current_folder_update_time = mailbox.folder_update_time
 
-                    # Check if the mailbox needs updating
-                    if (
-                        self.index_db_update_time is None
-                    ) or current_folder_update_time > self.index_db_update_time:
+                    # Decide per folder against that folder's OWN last-indexed time -
+                    # never against the global index_db mtime. A folder rsynced in by
+                    # mailbackup keeps its original (old) timestamp, so comparing it to
+                    # the recent index mtime would wrongly skip a folder that was never
+                    # indexed, leaving its mails unfindable (see #37). Reindex when the
+                    # folder is new (absent from the mailboxes table) or its mbox changed
+                    # since it was last indexed.
+                    needs_update = (
+                        prev_mailbox_update_time is None
+                        or current_folder_update_time > prev_mailbox_update_time
+                    )
+                    if needs_update:
                         ixs.mailboxes_to_update[mailbox.relative_folder_path] = mailbox
         ixs.total_mailboxes = len(ixs.mailboxes_to_update)
         if progress_bar:
