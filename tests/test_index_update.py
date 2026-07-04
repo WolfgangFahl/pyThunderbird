@@ -65,3 +65,37 @@ class TestIndexUpdate(BaseThunderbirdTest):
 
         # cleanup so the test stays repeatable
         os.remove(new_mbox)
+
+    def test_folded_message_id_is_normalized_in_index(self):
+        """
+        #38: a folded (multi-line) Message-ID header must be stored without
+        whitespace so exact-match index lookup works.
+        """
+        from thunderbird.mail import ThunderbirdMailbox
+
+        tb = Thunderbird.get(self.mock_user)
+        mbox_path = os.path.join(tb.local_folders, "WF.sbd", "folded")
+        os.makedirs(os.path.dirname(mbox_path), exist_ok=True)
+        # Message-ID folded onto a continuation line (leading CRLF + space),
+        # as produced for long Outlook ids
+        with open(mbox_path, "w") as mbox_file:
+            mbox_file.write(
+                "From x\r\n"
+                "Subject: folded id\r\n"
+                "Message-ID: \r\n <FOLDED123@FOO.PROD.OUTLOOK.COM>\r\n"
+                "Date: Sat, 01 Jan 2022 00:00:00 +0000\r\n\r\nbody\r\n"
+            )
+
+        mailbox = ThunderbirdMailbox(tb, mbox_path)
+        index_lod = mailbox.get_index_lod()
+        mailbox.close()
+
+        message_ids = [record["message_id"] for record in index_lod]
+        if self.debug:
+            print(f"indexed message_ids: {message_ids}")
+        self.assertIn("<FOLDED123@FOO.PROD.OUTLOOK.COM>", message_ids)
+        for message_id in message_ids:
+            self.assertNotIn("\n", message_id)
+            self.assertNotIn("\r", message_id)
+
+        os.remove(mbox_path)

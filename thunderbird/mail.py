@@ -1048,11 +1048,17 @@ ORDER BY email_index"""
             except Exception as e:
                 error_msg = f"{str(e)}"
 
+            raw_message_id = message.get("Message-ID")
+            if raw_message_id:
+                # unfold header folding: a Message-ID has no internal whitespace,
+                # so any CR/LF/spaces come from folding of long ids (e.g. Outlook)
+                # and must be removed or exact-match index lookup fails (see #38)
+                message_id = "".join(raw_message_id.split())
+            else:
+                message_id = f"{self.relative_folder_path}#{idx}"
             record = {
                 "folder_path": self.relative_folder_path,
-                "message_id": message.get(
-                    "Message-ID", f"{self.relative_folder_path}#{idx}"
-                ),
+                "message_id": message_id,
                 "sender": str(message.get("From", "?")),
                 "recipient": str(message.get("To", "?")),
                 "subject": decoded_subject,
@@ -1457,9 +1463,12 @@ class Mail(object):
             print(f"Searching for mail with id {self.mailid} for user {self.user}")
 
         if use_index_db and self.tb.index_db_exists():
-            # Query for the index database
+            # Query for the index database.
+            # Match whitespace-insensitively: older index rows may hold a folded
+            # Message-ID (leading CR/LF/space from header folding of long ids),
+            # which a plain "message_id = ?" would miss (see #38).
             query = """SELECT * FROM mail_index
-                       WHERE message_id = ?"""
+                       WHERE replace(replace(replace(message_id, char(10), ''), char(13), ''), ' ', '') = ?"""
             source = "index_db"
             params = (f"<{self.mailid}>",)
         else:
