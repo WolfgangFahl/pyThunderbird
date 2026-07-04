@@ -3,22 +3,25 @@ Created on 2023-11-23
 
 @author: wf
 """
-from fastapi import HTTPException, Response
+from fastapi import BackgroundTasks, Depends, HTTPException, Response
 from fastapi.responses import  FileResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.lod_grid import GridConfig, ListOfDictsGrid
+from ngwidgets.login import Login
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
 from nicegui import Client, app, ui, run
+from wikibot3rd.sso_users import Sso_Users
 
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox,\
     IndexingState
 from thunderbird.search import MailSearch
 from thunderbird.version import Version
 
-from typing import Any
+from typing import Any, Optional
 
 class ThunderbirdWebserver(InputWebserver):
     """
@@ -46,6 +49,139 @@ class ThunderbirdWebserver(InputWebserver):
     def __init__(self):
         """Constructor"""
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
+
+        # wiki-to-wiki: reuse the same MediaWiki SSO accounts as the wiki
+        # (Sso_Users swallows a missing credentials file -> is_available=False,
+        #  so this never breaks startup). See issue #39 / Tbmail/API.
+        self.users = Sso_Users(self.config.short_name)
+        self.login = Login(self, self.users)
+        api_security = HTTPBasic(auto_error=False)
+
+        def require_api_user(
+            credentials: Optional[HTTPBasicCredentials] = Depends(api_security),
+        ) -> Optional[str]:
+            """
+            Authenticate an /api/* caller against the wiki's SSO user database.
+
+            If SSO is not configured on this host the endpoints stay usable (the
+            mail UI is already unauthenticated today); drop
+            ~/.solutions/tbmail/sso_credentials.yaml in place to enforce auth.
+            """
+            if not self.users.is_available:
+                return None
+            if credentials and self.users.check_password(
+                credentials.username, credentials.password
+            ):
+                return credentials.username
+            raise HTTPException(
+                status_code=401,
+                detail="login required",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+
+        def api_tb(user: str) -> Thunderbird:
+            if user not in self.mail_archives.mail_archives:
+                raise HTTPException(status_code=404, detail=f"User '{user}' not found")
+            return self.mail_archives.mail_archives[user]
+
+        @app.get("/api/status")
+        def api_status():
+            return {
+                "status": "ok",
+                "service": self.config.short_name,
+                "version": Version().version,
+                "sso": self.users.is_available,
+            }
+
+        @app.get("/api/version")
+        def api_version():
+            v = Version()
+            return {"name": v.name, "version": v.version, "updated": v.updated}
+
+        @app.get("/api/mail/{user}/{mailid}")
+        def api_mail(
+            user: str, mailid: str, _user: Optional[str] = Depends(require_api_user)
+        ):
+            mail = self.get_mail(user, mailid)
+            if not mail.msg:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Mail with id {Mail.normalize_mailid(mailid)} not found",
+                )
+            return mail.as_dict()
+
+        @app.get("/api/search/{user}")
+        def api_search(
+            user: str,
+            message_id: Optional[str] = None,
+            limit: int = 50,
+            _user: Optional[str] = Depends(require_api_user),
+        ):
+            tb = api_tb(user)
+            hits = tb.search_mailid_like(f"%{message_id}%") if message_id else []
+            return {
+                "user": user,
+                "query": {"message_id": message_id},
+                "count": len(hits),
+                "hits": hits[:limit],
+            }
+
+        @app.get("/api/index/{user}/status")
+        def api_index_status(
+            user: str, _user: Optional[str] = Depends(require_api_user)
+        ):
+            tb = api_tb(user)
+            ixs = tb.get_indexing_state()
+            folders = tb.get_mailboxes_dod_from_sqldb(tb.index_db)
+            message_count = sum(
+                int(f.get("message_count", 0) or 0) for f in folders.values()
+            )
+            return {
+                "user": user,
+                "index_db_update_time": str(ixs.index_db_update_time)
+                if ixs.index_db_update_time
+                else None,
+                "gloda_db_update_time": str(ixs.gloda_db_update_time)
+                if ixs.gloda_db_update_time
+                else None,
+                "needs_update": ixs.needs_update,
+                "folder_count": len(folders),
+                "message_count": message_count,
+            }
+
+        @app.post("/api/index/{user}")
+        def api_index(
+            user: str,
+            background: BackgroundTasks,
+            force: bool = False,
+            _user: Optional[str] = Depends(require_api_user),
+        ):
+            tb = api_tb(user)
+            # reindex can take minutes - run it in the background and let the
+            # caller poll GET /api/index/{user}/status
+            background.add_task(tb.create_or_update_index, force_create=force)
+            return {
+                "user": user,
+                "force": force,
+                "status": "started",
+                "hint": f"poll GET /api/index/{user}/status",
+            }
+
+        @app.get("/api/folders/{user}")
+        def api_folders(
+            user: str, _user: Optional[str] = Depends(require_api_user)
+        ):
+            tb = api_tb(user)
+            folders = tb.get_mailboxes_dod_from_sqldb(tb.index_db)
+            lod = [
+                {
+                    "path": path,
+                    "message_count": info.get("message_count"),
+                    "folder_update_time": info.get("folder_update_time"),
+                }
+                for path, info in folders.items()
+            ]
+            return {"user": user, "count": len(lod), "folders": lod}
 
         @app.get("/part/{user}/{mailid}/{part_index:int}")
         async def get_part(user: str, mailid: str, part_index: int):

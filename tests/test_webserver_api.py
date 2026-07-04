@@ -14,6 +14,10 @@ from thunderbird.tb_webserver import ThunderbirdWebserver
 class TestAPI(WebserverTest):
     """
     test the Thunderbird Server RESTFul API
+
+    Note: WebserverTest starts a fresh server per test method on the same test
+    port, and the previous one is not guaranteed to release it before the next
+    setUp binds - so this class keeps a single test method on purpose.
     """
 
     def setUp(self, debug=True, profile=True):
@@ -48,10 +52,32 @@ class TestAPI(WebserverTest):
         if self.debug:
             print(f"configure run done after {int(round(elapsed/1000))} msecs")
 
-    def test_mail_endpoints(self):
+    def test_endpoints(self):
         """
-        Test various /mail/{user}/{mailid}.wiki endpoints.
+        Test the .wiki mail endpoint and the machine-readable /api/* endpoints (#39).
         """
+        # --- machine-readable JSON API (#39) ---
+        status = self.get_response("/api/status", 200).json()
+        if self.debug:
+            print(status)
+        self.assertEqual(status["status"], "ok")
+        self.assertIn("sso", status)
+
+        version = self.get_response("/api/version", 200).json()
+        self.assertEqual(version["name"], "pyThunderbird")
+
+        # the new /api/* routes must be discoverable in OpenAPI so they show at /docs
+        paths = self.get_response("/openapi.json", 200).json().get("paths", {})
+        for expected in [
+            "/api/status",
+            "/api/mail/{user}/{mailid}",
+            "/api/search/{user}",
+            "/api/index/{user}/status",
+            "/api/folders/{user}",
+        ]:
+            self.assertIn(expected, paths, f"missing OpenAPI path {expected}")
+
+        # --- the existing .wiki mail endpoint ---
         test_cases = [
             ("invalid_user", "invalid_id", 404, "Mail with id"),
         ]
@@ -71,5 +97,4 @@ class TestAPI(WebserverTest):
                 text = response.content.decode()
                 if self.debug:
                     print(f"{user} {mail_id}\n{text}")
-
                 self.assertIn(substring, text)
