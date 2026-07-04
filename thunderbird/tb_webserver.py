@@ -9,12 +9,21 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.lod_grid import GridConfig, ListOfDictsGrid
-from ngwidgets.login import Login
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
 from nicegui import Client, app, ui, run
-from wikibot3rd.sso_users import Sso_Users
+
+try:
+    # MediaWiki SSO (wiki-to-wiki auth). Optional: a missing package must never
+    # take down the mail service - SSO simply becomes unavailable then (#39).
+    from ngwidgets.login import Login
+    from wikibot3rd.sso_users import Sso_Users
+    HAS_SSO = True
+except ImportError:
+    Login = None
+    Sso_Users = None
+    HAS_SSO = False
 
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox,\
     IndexingState
@@ -50,11 +59,11 @@ class ThunderbirdWebserver(InputWebserver):
         """Constructor"""
         InputWebserver.__init__(self, config=ThunderbirdWebserver.get_config())
 
-        # wiki-to-wiki: reuse the same MediaWiki SSO accounts as the wiki
-        # (Sso_Users swallows a missing credentials file -> is_available=False,
-        #  so this never breaks startup). See issue #39 / Tbmail/API.
-        self.users = Sso_Users(self.config.short_name)
-        self.login = Login(self, self.users)
+        # wiki-to-wiki: reuse the same MediaWiki SSO accounts as the wiki.
+        # SSO is optional - a missing wikibot3rd package or credentials file must
+        # never break the mail service; it just disables auth. See #39 / Tbmail/API.
+        self.users = Sso_Users(self.config.short_name) if HAS_SSO else None
+        self.login = Login(self, self.users) if HAS_SSO else None
         api_security = HTTPBasic(auto_error=False)
 
         def require_api_user(
@@ -67,7 +76,7 @@ class ThunderbirdWebserver(InputWebserver):
             mail UI is already unauthenticated today); drop
             ~/.solutions/tbmail/sso_credentials.yaml in place to enforce auth.
             """
-            if not self.users.is_available:
+            if self.users is None or not self.users.is_available:
                 return None
             if credentials and self.users.check_password(
                 credentials.username, credentials.password
@@ -90,7 +99,7 @@ class ThunderbirdWebserver(InputWebserver):
                 "status": "ok",
                 "service": self.config.short_name,
                 "version": Version().version,
-                "sso": self.users.is_available,
+                "sso": bool(self.users and self.users.is_available),
             }
 
         @app.get("/api/version")
