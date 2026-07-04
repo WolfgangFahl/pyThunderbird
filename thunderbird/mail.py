@@ -1322,9 +1322,14 @@ class Mail(object):
     @classmethod
     def normalize_mailid(cls, mail_id: str) -> str:
         """
-        remove the surrounding <> of the given mail_id
+        remove the surrounding <> and any folding whitespace of the given mail_id
+
+        A Message-ID has no internal whitespace, so long ids (e.g. Outlook) that
+        were header-folded onto a continuation line carry stray CR/LF/space that
+        would break equality checks - strip it (see #38).
         """
         mail_id = re.sub(r"\<(.*)\>", r"\1", mail_id)
+        mail_id = "".join(mail_id.split())
         return mail_id
 
     def as_html_error_msg(self) -> str:

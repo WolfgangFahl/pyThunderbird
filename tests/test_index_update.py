@@ -86,7 +86,9 @@ class TestIndexUpdate(BaseThunderbirdTest):
                 "Date: Sat, 01 Jan 2022 00:00:00 +0000\r\n\r\nbody\r\n"
             )
 
-        mailbox = ThunderbirdMailbox(tb, mbox_path)
+        # restore_toc=False: index straight from the mbox, as the real indexer
+        # does (a leftover index from another test would otherwise clear the TOC)
+        mailbox = ThunderbirdMailbox(tb, mbox_path, restore_toc=False)
         index_lod = mailbox.get_index_lod()
         mailbox.close()
 
@@ -97,5 +99,29 @@ class TestIndexUpdate(BaseThunderbirdTest):
         for message_id in message_ids:
             self.assertNotIn("\n", message_id)
             self.assertNotIn("\r", message_id)
+
+        os.remove(mbox_path)
+
+    def test_folded_message_id_resolves_end_to_end(self):
+        """
+        #38: a mail whose Message-ID header is folded must be resolvable by its
+        clean id through the index + check_mailid path.
+        """
+        from thunderbird.mail import Mail
+
+        tb = Thunderbird.get(self.mock_user)
+        mbox_path = os.path.join(tb.local_folders, "WF.sbd", "folded2")
+        os.makedirs(os.path.dirname(mbox_path), exist_ok=True)
+        with open(mbox_path, "w") as mbox_file:
+            mbox_file.write(
+                "From x\r\n"
+                "Subject: folded end to end\r\n"
+                "Message-ID: \r\n <FOLDED456@FOO.PROD.OUTLOOK.COM>\r\n"
+                "Date: Sat, 01 Jan 2022 00:00:00 +0000\r\n\r\nbody\r\n"
+            )
+        tb.create_or_update_index(force_create=True)
+
+        mail = Mail(self.mock_user, "FOLDED456@FOO.PROD.OUTLOOK.COM")
+        self.assertIsNotNone(mail.msg)
 
         os.remove(mbox_path)
