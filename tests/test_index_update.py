@@ -102,6 +102,45 @@ class TestIndexUpdate(BaseThunderbirdTest):
 
         os.remove(mbox_path)
 
+    def test_incremental_index_not_gated_by_gloda_mtime(self):
+        """
+        #37: a plain (non-forced) reindex must pick up a new folder even when the
+        index_db is newer than the gloda db - as it always is after mailbackup
+        copies the gloda with scp -p (older timestamp). The outer needs_update
+        gate must not skip the per-folder evaluation.
+        """
+        from thunderbird.mail import Mail
+
+        tb = Thunderbird.get(self.mock_user)
+        new_mbox = os.path.join(tb.local_folders, "WF.sbd", "outergate")
+        if os.path.exists(new_mbox):
+            os.remove(new_mbox)
+
+        # 1. full index of the initial folder(s); index_db is now newer than gloda
+        tb.create_or_update_index(force_create=True)
+        self.assertTrue(tb.index_db_exists())
+        self.assertGreater(
+            os.path.getmtime(tb.index_db_path), os.path.getmtime(tb.gloda_db_path)
+        )
+
+        # 2. add a new folder AFTER indexing
+        os.makedirs(os.path.dirname(new_mbox), exist_ok=True)
+        with open(new_mbox, "w") as mbox_file:
+            mbox_file.write(
+                "From x\r\nSubject: outer gate\r\n"
+                "Message-ID: <OUTERGATE@x.com>\r\n"
+                "Date: Sat, 01 Jan 2022 00:00:00 +0000\r\n\r\nbody\r\n"
+            )
+
+        # 3. plain incremental reindex (NOT forced) must still index it
+        tb.create_or_update_index(force_create=False)
+        mail = Mail(self.mock_user, "OUTERGATE@x.com")
+        self.assertIsNotNone(
+            mail.msg, "new folder not indexed by a non-forced incremental reindex"
+        )
+
+        os.remove(new_mbox)
+
     def test_folded_message_id_resolves_end_to_end(self):
         """
         #38: a mail whose Message-ID header is folded must be resolvable by its

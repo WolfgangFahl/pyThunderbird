@@ -595,8 +595,15 @@ class Thunderbird(MailArchive):
             gloda_db_update_time=gloda_db_update_time,
             index_db_update_time=index_db_update_time,
             force_create=force_create)
-        ixs.needs_update = not index_up_to_date or force_create
-        marker = "❌ " if ixs.needs_update else "✅"
+        # Always run an incremental pass. Whether a folder actually needs work is
+        # decided per folder in prepare_mailboxes_for_indexing (an unchanged tree
+        # is a fast no-op); force_create reindexes everything. The global
+        # gloda-vs-index mtime must NOT gate the run: mailbackup copies the gloda
+        # with scp -p, so it arrives with an older timestamp than the server index
+        # and this comparison would wrongly report "up to date" and skip a needed
+        # update, leaving the index stale (#37).
+        ixs.needs_update = True
+        marker = "✅" if index_up_to_date else "🔄"
         ixs.state_msg = f"""{marker} {self.user} update times:
 Index db: {ixs.index_db_update_time}
    Gloda: {ixs.gloda_db_update_time}
@@ -1565,6 +1572,38 @@ class Mail(object):
 |date={iso_date}
 }}}}"""
         return wikison
+
+    def as_dict(self) -> Dict[str, Any]:
+        """
+        machine-readable representation of this mail (for the JSON API)
+        """
+        if len(self.headers) == 0:
+            self.extract_headers()
+        _msg_date, iso_date, _error_msg = Mail.get_iso_date(self.msg)
+        parts = []
+        for index, part in enumerate(getattr(self, "msgParts", []) or []):
+            parts.append(
+                {
+                    "index": index,
+                    "content_type": part.get_content_type(),
+                    "charset": part.get_content_charset(),
+                    "filename": getattr(part, "filename", None),
+                    "length": getattr(part, "length", None),
+                }
+            )
+        return {
+            "user": self.user,
+            "id": self.mailid,
+            "folder": getattr(self, "folder_path", None),
+            "from": self.getHeader("From"),
+            "to": self.getHeader("To"),
+            "subject": self.getHeader("Subject"),
+            "date": iso_date,
+            "message_id": self.getHeader("Message-ID"),
+            "headers": dict(self.headers),
+            "wiki": self.asWikiMarkup(),
+            "parts": parts,
+        }
 
     def table_line(self, key, value):
         """Generate a table row with a key and value."""
