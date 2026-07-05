@@ -66,10 +66,23 @@ class TestAPI(WebserverTest):
         version = self.get_response("/api/version", 200).json()
         self.assertEqual(version["name"], "pyThunderbird")
 
+        # machine-readable version of the home-page overview (#40)
+        archives = self.get_response("/api/archives", 200).json()
+        self.assertIn("count", archives)
+        self.assertIsInstance(archives["archives"], list)
+        for record in archives["archives"]:
+            self.assertIn("user", record)
+            self.assertIn("gloda_updated", record)
+            self.assertIn("index_updated", record)
+            # index health verdict so an agent can spot a stale/missing index
+            self.assertIn("index_state", record)
+            self.assertIn(record["index_state"], ("ok", "stale", "missing"))
+
         # the new /api/* routes must be discoverable in OpenAPI so they show at /docs
         paths = self.get_response("/openapi.json", 200).json().get("paths", {})
         for expected in [
             "/api/status",
+            "/api/archives",
             "/api/mail/{user}/{mailid}",
             "/api/search/{user}",
             "/api/index/{user}/status",

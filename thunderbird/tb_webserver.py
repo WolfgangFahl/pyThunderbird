@@ -107,6 +107,17 @@ class ThunderbirdWebserver(InputWebserver):
             v = Version()
             return {"name": v.name, "version": v.version, "updated": v.updated}
 
+        @app.get("/api/archives")
+        def api_archives(_user: Optional[str] = Depends(require_api_user)):
+            # machine-readable version of the home-page overview (#40): the raw
+            # to_dict() records without the HTML Link decorations as_view_lod adds
+            archives = self.mail_archives.mail_archives.values()
+            lod = [
+                archive.to_dict(index + 1)
+                for index, archive in enumerate(archives)
+            ]
+            return {"count": len(lod), "archives": lod}
+
         @app.get("/api/mail/{user}/{mailid}")
         def api_mail(
             user: str, mailid: str, _user: Optional[str] = Depends(require_api_user)

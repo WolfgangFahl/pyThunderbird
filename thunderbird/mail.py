@@ -92,6 +92,26 @@ class MailArchive:
         timestamp = os.path.getmtime(file_path)
         return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
+    def index_state(self) -> str:
+        """
+        Verdict on the index db health relative to the gloda db.
+
+        The times are zero-padded "%Y-%m-%d %H:%M:%S" strings, so a plain
+        string comparison is chronologically correct.
+
+        Returns:
+            str: "missing" if there is no index db yet, "stale" if the index db
+            is older than the gloda db (needs a reindex), otherwise "ok".
+        """
+        if not self.index_db_exists() or not self.index_db_update_time:
+            return "missing"
+        if (
+            self.gloda_db_update_time
+            and self.index_db_update_time < self.gloda_db_update_time
+        ):
+            return "stale"
+        return "ok"
+
     def to_dict(self, index: int = None) -> Dict[str, str]:
         """
         Converts the mail archive data to a dictionary, including the update times for both databases.
@@ -118,6 +138,7 @@ class MailArchive:
             "index_updated": self.index_db_update_time
             if self.index_db_update_time
             else "-",
+            "index_state": self.index_state(),
         }
         if index is not None:
             record = {"#": index, **record}
