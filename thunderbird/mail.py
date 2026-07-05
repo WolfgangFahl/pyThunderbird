@@ -1349,7 +1349,10 @@ class Mail(object):
             and an error message if the date cannot be extracted or parsed, otherwise None.
         """
         date_parser = DateParser()
-        msg_date = msg.get("Date", "")
+        # coerce to str: a Date header with RFC 2047 encoded words comes back as
+        # an email.header.Header, which sqlite cannot bind ("Type Header is not
+        # supported") and DateParser cannot parse
+        msg_date = str(msg.get("Date", ""))
         iso_date = "?"
         error_msg = None
         if msg_date:
