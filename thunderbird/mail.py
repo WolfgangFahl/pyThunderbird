@@ -92,23 +92,34 @@ class MailArchive:
         timestamp = os.path.getmtime(file_path)
         return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
+    def _live_update_time(self, file_path: str) -> Optional[str]:
+        """
+        Reads the current update time from disk, or None if the file is gone.
+
+        Unlike the cached attributes set in __post_init__, this reflects a
+        reindex immediately, so the API/home page do not need a restart (#41).
+        """
+        if file_path and os.path.isfile(file_path):
+            return self._get_file_update_time(file_path)
+        return None
+
     def index_state(self) -> str:
         """
         Verdict on the index db health relative to the gloda db.
 
         The times are zero-padded "%Y-%m-%d %H:%M:%S" strings, so a plain
-        string comparison is chronologically correct.
+        string comparison is chronologically correct. Times are read live from
+        disk (#41) so a reindex is reflected without restarting the server.
 
         Returns:
             str: "missing" if there is no index db yet, "stale" if the index db
             is older than the gloda db (needs a reindex), otherwise "ok".
         """
-        if not self.index_db_exists() or not self.index_db_update_time:
+        index_time = self._live_update_time(self.index_db_path)
+        if not self.index_db_exists() or not index_time:
             return "missing"
-        if (
-            self.gloda_db_update_time
-            and self.index_db_update_time < self.gloda_db_update_time
-        ):
+        gloda_time = self._live_update_time(self.gloda_db_path)
+        if gloda_time and index_time < gloda_time:
             return "stale"
         return "ok"
 
@@ -129,15 +140,16 @@ class MailArchive:
             else [profile_shortened]
         )
         profile_key = ps_parts[0] if ps_parts else None
+        # read live from disk (#41) so a reindex shows up without a restart
+        gloda_updated = self._live_update_time(self.gloda_db_path)
+        index_updated = self._live_update_time(self.index_db_path)
         record = {
             "user": self.user,
             #"gloda_db_path": self.gloda_db_path,
             #"index_db_path": self.index_db_path if self.index_db_path else "-",
             "profile": profile_key,
-            "gloda_updated": self.gloda_db_update_time,
-            "index_updated": self.index_db_update_time
-            if self.index_db_update_time
-            else "-",
+            "gloda_updated": gloda_updated,
+            "index_updated": index_updated if index_updated else "-",
             "index_state": self.index_state(),
         }
         if index is not None:
