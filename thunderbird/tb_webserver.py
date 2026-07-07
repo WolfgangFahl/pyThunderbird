@@ -552,6 +552,10 @@ class ThunderbirdSolution(InputWebSolution):
             if self.folder_mbox is None:
                 ui.notify("nothing to index")
                 return
+            if not self.tb.has_index_table():
+                # fresh install: the index db has no mail_index table yet (#32)
+                ui.notify("no mail index available yet - create the index first")
+                return
             try:
                 index_lod = self.folder_mbox.get_toc_lod_from_sqldb(self.tb.index_db)
                 view_lod = ThunderbirdMailbox.to_view_lod(index_lod, user)

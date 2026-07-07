@@ -292,6 +292,27 @@ class Thunderbird(MailArchive):
         self.local_folders = f"{self.profile}/Mail/Local Folders"
         self.errors=[]
 
+    def has_index_table(self, table_name: str = "mail_index") -> bool:
+        """
+        Check whether the index database actually contains the given table.
+
+        The index file may exist (it is created on connect) while indexing
+        has never run, so a file-level index_db_exists() check is not
+        sufficient - see https://github.com/WolfgangFahl/pyThunderbird/issues/32
+
+        Args:
+            table_name (str): the table to check for
+
+        Returns:
+            bool: True if the table exists in the index database
+        """
+        if not self.index_db_exists():
+            return False
+        query = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+        rows = self.index_db.query(query, (table_name,))
+        table_exists = len(rows) > 0
+        return table_exists
+
     def get_mailboxes(self, progress_bar=None, restore_toc: bool = False):
         """
         Create a dict of Thunderbird mailboxes.
@@ -914,7 +935,7 @@ class ThunderbirdMailbox:
         self.folder_update_time = self.tb._get_file_update_time(self.folder_path)
         self.relative_folder_path = ThunderbirdMailbox.as_relative_path(folder_path)
         self.mbox = mailbox.mbox(folder_path)
-        if restore_toc and tb.index_db_exists():
+        if restore_toc and tb.has_index_table():
             self.restore_toc_from_sqldb(tb.index_db)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -1288,6 +1309,7 @@ class Mail(object):
         self.keySearch = keySearch
         self.rawMsg = None
         self.msg = None
+        self.error = ""
         self.headers = {}
         self.fromUrl = None
         self.fromMailTo = None
@@ -1298,7 +1320,14 @@ class Mail(object):
             mail_lookup = MailLookup.from_mail_record(mail_record)
             self.folder_path = mail_lookup.folder_path
             folderPath = self.tb.local_folders + mail_lookup.folder_path
-            tb_mbox = ThunderbirdMailbox(self.tb, folderPath, debug=self.debug)
+            try:
+                tb_mbox = ThunderbirdMailbox(self.tb, folderPath, debug=self.debug)
+            except ValueError as folder_error:
+                # stale index entry: the folder file is gone (moved/renamed) -
+                # treat as mail not found instead of crashing, see
+                # https://github.com/WolfgangFahl/pyThunderbird/issues/33
+                self.error = str(folder_error)
+                return
             found=False
             if mail_lookup.start_pos is not None and mail_lookup.stop_pos is not None:
                 self.msg = tb_mbox.get_message_by_pos(mail_lookup.start_pos, mail_lookup.stop_pos)
@@ -1510,7 +1539,8 @@ class Mail(object):
         if self.debug:
             print(f"Searching for mail with id {self.mailid} for user {self.user}")
 
-        if use_index_db and self.tb.index_db_exists():
+        use_index = use_index_db and self.tb.has_index_table()
+        if use_index:
             # Query for the index database.
             # Match whitespace-insensitively: older index rows may hold a folded
             # Message-ID (leading CR/LF/space from header folding of long ids),
@@ -1528,11 +1558,7 @@ class Mail(object):
             source = "gloda"
             params = (self.mailid,)
 
-        db = (
-            self.tb.index_db
-            if use_index_db and self.tb.index_db_exists()
-            else self.tb.sqlDB
-        )
+        db = self.tb.index_db if use_index else self.tb.sqlDB
         maillookup = db.query(query, params)
 
         if self.debug:
