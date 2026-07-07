@@ -90,6 +90,19 @@ class TestAPI(WebserverTest):
         ]:
             self.assertIn(expected, paths, f"missing OpenAPI path {expected}")
 
+        # --- /api/search with per-field LIKE parameters (#43) ---
+        # unknown user -> 404; no criteria -> 400
+        self.get_response("/api/search/invalid_user?subject=x", 404)
+        if not self.inPublicCI():
+            self.get_response("/api/search/wf", 400)
+            search = self.get_response("/api/search/wf?subject=iSAQB", 200).json()
+            self.assertGreaterEqual(search["count"], 1)
+            self.assertIn("hits", search)
+            for hit in search["hits"]:
+                self.assertIn("iSAQB".lower(), hit["subject"].lower())
+                self.assertIn("folder_path", hit)
+                self.assertNotIn("start_pos", hit)
+
         # --- the existing .wiki mail endpoint ---
         test_cases = [
             ("invalid_user", "invalid_id", 404, "Mail with id"),

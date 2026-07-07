@@ -11,6 +11,62 @@ from nicegui.events import GenericEventArguments
 from thunderbird.mail import ThunderbirdMailbox
 
 
+class IndexQuery:
+    """
+    UI-independent construction of mail_index SQL queries with
+    substring (LIKE) semantics per field - shared by the interactive
+    search and the /api/search endpoint
+    https://github.com/WolfgangFahl/pyThunderbird/issues/43
+
+    The search is based on the `index_db` table structure:
+
+    CREATE TABLE mail_index (
+      folder_path TEXT,
+      message_id TEXT,
+      sender TEXT,
+      recipient TEXT,
+      subject TEXT,
+      date TEXT,
+      iso_date TEXT,
+      email_index INTEGER,
+      start_pos INTEGER,
+      stop_pos INTEGER,
+      error TEXT
+    )
+    """
+
+    columns = ["subject", "sender", "recipient", "message_id"]
+
+    @classmethod
+    def construct_query(cls, criteria: dict) -> (str, list):
+        """
+        Construct the SQL query for the given column-space criteria.
+
+        Args:
+            criteria (dict): mail_index column name -> substring to match;
+                empty/None values are ignored.
+
+        Returns:
+            tuple: A tuple containing the SQL query string and the list of parameters.
+        """
+        sql_query = "SELECT * FROM mail_index WHERE "
+        query_conditions = []
+        query_params = []
+
+        for column in cls.columns:
+            value = criteria.get(column)
+            if value:
+                query_conditions.append(f"{column} LIKE ?")
+                query_params.append(f"%{value}%")
+
+        if not query_conditions:
+            sql_query = "SELECT * FROM mail_index"
+        else:
+            sql_query += " AND ".join(query_conditions)
+
+        return sql_query, query_params
+
+
 class MailSearch:
     """
     utility module to search Thunderbird mails
@@ -58,57 +114,31 @@ class MailSearch:
         self.search_summary = ui.html()
         self.search_results_grid = ListOfDictsGrid(lod=[])
 
+    # Mapping from search form keys to SQL table columns
+    column_mappings = {
+        "Subject": "subject",
+        "From": "sender",
+        "To": "recipient",
+        "Message-ID:": "message_id",
+    }
+
     def construct_query(self, search_criteria: dict) -> (str, list):
         """
-            Construct the SQL query based on the search criteria.
+        Construct the SQL query based on the search form criteria.
 
-            Args:
-                search_criteria (dict): The dictionary containing search parameters.
+        Args:
+            search_criteria (dict): The dictionary containing search parameters
+                keyed by form labels (Subject, From, To, Message-ID:).
 
-            Returns:
-                tuple: A tuple containing the SQL query string and the list of parameters.
-
-           The search is based on the `index_db` table structure:
-
-        CREATE TABLE mail_index (
-          folder_path TEXT,
-          message_id TEXT,
-          sender TEXT,
-          recipient TEXT,
-          subject TEXT,
-          date TEXT,
-          iso_date TEXT,
-          email_index INTEGER,
-          start_pos INTEGER,
-          stop_pos INTEGER,
-          error TEXT
-        )
+        Returns:
+            tuple: A tuple containing the SQL query string and the list of parameters.
         """
-        sql_query = "SELECT * FROM mail_index WHERE "
-        query_conditions = []
-        query_params = []
-
-        # Mapping from search_dict keys to SQL table columns
-        column_mappings = {
-            "Subject": "subject",
-            "From": "sender",
-            "To": "recipient",
-            "Message-ID:": "message_id",
-        }
-
+        criteria = {}
         for field, value in search_criteria.items():
-            if value and column_mappings[field]:
-                sql_column = column_mappings[field]
-                query_conditions.append(f"{sql_column} LIKE ?")
-                query_params.append(f"%{value}%")
-
-        # Special handling for fields like "Content" or "Date" can be added here
-
-        if not query_conditions:
-            sql_query = "SELECT * FROM mail_index"
-        else:
-            sql_query += " AND ".join(query_conditions)
-
+            column = self.column_mappings.get(field)
+            if column and value:
+                criteria[column] = value
+        sql_query, query_params = IndexQuery.construct_query(criteria)
         return sql_query, query_params
 
     async def on_search(self, _event: GenericEventArguments):

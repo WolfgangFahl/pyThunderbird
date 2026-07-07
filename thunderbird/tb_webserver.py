@@ -27,7 +27,7 @@ except ImportError:
 
 from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox,\
     IndexingState
-from thunderbird.search import MailSearch
+from thunderbird.search import IndexQuery, MailSearch
 from thunderbird.version import Version
 
 from typing import Any, Optional
@@ -133,17 +133,42 @@ class ThunderbirdWebserver(InputWebserver):
         @app.get("/api/search/{user}")
         def api_search(
             user: str,
+            subject: Optional[str] = None,
+            from_addr: Optional[str] = None,
+            to_addr: Optional[str] = None,
             message_id: Optional[str] = None,
             limit: int = 50,
             _user: Optional[str] = Depends(require_api_user),
         ):
+            """
+            Search the mail index with substring (LIKE) semantics per field,
+            combinable with AND - shares IndexQuery with the interactive
+            search (#43).
+            """
             tb = api_tb(user)
-            hits = tb.search_mailid_like(f"%{message_id}%") if message_id else []
+            criteria = {
+                "subject": subject,
+                "sender": from_addr,
+                "recipient": to_addr,
+                "message_id": message_id,
+            }
+            sql_query, query_params = IndexQuery.construct_query(criteria)
+            if not query_params:
+                raise HTTPException(
+                    status_code=400,
+                    detail="at least one of subject, from_addr, to_addr, message_id is required",
+                )
+            rows = tb.index_db.query(sql_query, query_params)
+            drop_keys = ("start_pos", "stop_pos", "email_index", "error")
+            hits = [
+                {k: v for k, v in row.items() if k not in drop_keys}
+                for row in rows[:limit]
+            ]
             return {
                 "user": user,
-                "query": {"message_id": message_id},
-                "count": len(hits),
-                "hits": hits[:limit],
+                "query": {k: v for k, v in criteria.items() if v},
+                "count": len(rows),
+                "hits": hits,
             }
 
         @app.get("/api/index/{user}/status")
