@@ -103,6 +103,25 @@ class TestAPI(WebserverTest):
                 self.assertIn("folder_path", hit)
                 self.assertNotIn("start_pos", hit)
 
+        # --- /api/mail content negotiation (#35) ---
+        if not self.inPublicCI():
+            mail_path = "/api/mail/wf/0c2e98c4-1bc7-9ce9-f80e-07fbed60e554@apache.org"
+            accept_cases = [
+                ("application/json", "application/json", '"subject"'),
+                ("text/html", "text/html", "<table"),
+                ("text/plain", "text/plain", "{{mail"),
+                ("application/x-wiki", "text/plain", "{{mail"),
+                # unknown type and wildcard fall back to JSON
+                ("image/png, */*", "application/json", '"subject"'),
+            ]
+            for accept, expected_type, expected_content in accept_cases:
+                response = self.client.get(mail_path, headers={"Accept": accept})
+                self.assertEqual(200, response.status_code, accept)
+                self.assertIn(
+                    expected_type, response.headers["content-type"], accept
+                )
+                self.assertIn(expected_content, response.text, accept)
+
         # --- the existing .wiki mail endpoint ---
         test_cases = [
             ("invalid_user", "invalid_id", 404, "Mail with id"),

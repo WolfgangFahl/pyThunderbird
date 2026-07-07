@@ -3,7 +3,7 @@ Created on 2023-11-23
 
 @author: wf
 """
-from fastapi import BackgroundTasks, Depends, HTTPException, Response
+from fastapi import BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.responses import  FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from ngwidgets.file_selector import FileSelector
@@ -118,16 +118,57 @@ class ThunderbirdWebserver(InputWebserver):
             ]
             return {"count": len(lod), "archives": lod}
 
+        def negotiate_mail_format(accept: str) -> str:
+            """
+            Pick the mail response format from an Accept header (#35).
+
+            Media types are checked in the order the client lists them;
+            the first supported one wins. Wildcards and unknown types
+            fall back to JSON.
+
+            Args:
+                accept (str): the Accept header value
+
+            Returns:
+                str: one of json, html, wiki
+            """
+            format_by_media_type = {
+                "application/json": "json",
+                "text/html": "html",
+                "text/plain": "wiki",
+                "application/x-wiki": "wiki",
+            }
+            for item in accept.split(","):
+                media_type = item.split(";")[0].strip().lower()
+                if media_type in format_by_media_type:
+                    return format_by_media_type[media_type]
+            return "json"
+
         @app.get("/api/mail/{user}/{mailid}")
         def api_mail(
-            user: str, mailid: str, _user: Optional[str] = Depends(require_api_user)
+            user: str,
+            mailid: str,
+            request: Request,
+            _user: Optional[str] = Depends(require_api_user),
         ):
+            """
+            Get a single mail; the response format follows the Accept
+            header (#35): application/json (default), text/html, or
+            text/plain / application/x-wiki for wiki markup.
+            """
             mail = self.get_mail(user, mailid)
             if not mail.msg:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Mail with id {Mail.normalize_mailid(mailid)} not found",
                 )
+            response_format = negotiate_mail_format(
+                request.headers.get("accept", "application/json")
+            )
+            if response_format == "html":
+                return Response(content=mail.as_html(), media_type="text/html")
+            if response_format == "wiki":
+                return Response(content=mail.asWikiMarkup(), media_type="text/plain")
             return mail.as_dict()
 
         @app.get("/api/search/{user}")
