@@ -18,7 +18,7 @@ class Version(object):
     version = thunderbird.__version__
     description = "python based access to Thunderbird mail"
     date = "2021-09-23"
-    updated = "2026-07-07"
+    updated = "2026-08-05"
 
     authors = "Wolfgang Fahl"
 
