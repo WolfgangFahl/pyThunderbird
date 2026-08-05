@@ -1767,8 +1767,38 @@ class Mail(object):
         if section_name in table_sections:
             # Closing tables
             html_parts.append("</table>")
-        markup = "".join(html_parts)
+        markup = self.strip_scripts("".join(html_parts))
         return markup
+
+    @classmethod
+    def strip_scripts(cls, html_markup: str) -> str:
+        """
+        Remove script elements from the given html markup.
+
+        Mail bodies routinely carry script tags. nicegui refuses to render any
+        html content containing them and scripts from a mail must not execute in
+        the viewer anyway (see #46).
+
+        Args:
+            html_markup: the markup to sanitize
+
+        Returns:
+            The markup without script elements.
+        """
+        if html_markup is None:
+            sanitized = ""
+        else:
+            sanitized = re.sub(
+                r"<script\b[^>]*>.*?</\s*script\s*>",
+                "",
+                html_markup,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+            # an unclosed or truncated script tag would still trip the nicegui check
+            sanitized = re.sub(
+                r"<\s*/?\s*script\b[^>]*>?", "", sanitized, flags=re.IGNORECASE
+            )
+        return sanitized
 
     def as_html(self):
         """Generate the HTML representation of the mail."""
