@@ -3,8 +3,9 @@ Created on 2023-11-23
 
 @author: wf
 """
+
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, Response
-from fastapi.responses import  FileResponse
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from ngwidgets.file_selector import FileSelector
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
@@ -12,25 +13,32 @@ from ngwidgets.lod_grid import GridConfig, ListOfDictsGrid
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.webserver import WebserverConfig
 from ngwidgets.widgets import HideShow
-from nicegui import Client, app, ui, run
+from nicegui import Client, app, run, ui
 
 try:
     # MediaWiki SSO (wiki-to-wiki auth). Optional: a missing package must never
     # take down the mail service - SSO simply becomes unavailable then (#39).
     from ngwidgets.login import Login
     from wikibot3rd.sso_users import Sso_Users
+
     HAS_SSO = True
 except ImportError:
     Login = None
     Sso_Users = None
     HAS_SSO = False
 
-from thunderbird.mail import Mail, MailArchives, Thunderbird, ThunderbirdMailbox,\
-    IndexingState
+from typing import Any, Optional
+
+from thunderbird.mail import (
+    IndexingState,
+    Mail,
+    MailArchives,
+    Thunderbird,
+    ThunderbirdMailbox,
+)
 from thunderbird.search import IndexQuery, MailSearch
 from thunderbird.version import Version
 
-from typing import Any, Optional
 
 class ThunderbirdWebserver(InputWebserver):
     """
@@ -48,12 +56,11 @@ class ThunderbirdWebserver(InputWebserver):
             version=Version(),
             short_name="tbmail",
             default_port=8482,
-            timeout=15.0
+            timeout=15.0,
         )
         server_config = WebserverConfig.get(config)
         server_config.solution_class = ThunderbirdSolution
         return server_config
-
 
     def __init__(self):
         """Constructor"""
@@ -112,10 +119,7 @@ class ThunderbirdWebserver(InputWebserver):
             # machine-readable version of the home-page overview (#40): the raw
             # to_dict() records without the HTML Link decorations as_view_lod adds
             archives = self.mail_archives.mail_archives.values()
-            lod = [
-                archive.to_dict(index + 1)
-                for index, archive in enumerate(archives)
-            ]
+            lod = [archive.to_dict(index + 1) for index, archive in enumerate(archives)]
             return {"count": len(lod), "archives": lod}
 
         def negotiate_mail_format(accept: str) -> str:
@@ -224,12 +228,12 @@ class ThunderbirdWebserver(InputWebserver):
             )
             return {
                 "user": user,
-                "index_db_update_time": str(ixs.index_db_update_time)
-                if ixs.index_db_update_time
-                else None,
-                "gloda_db_update_time": str(ixs.gloda_db_update_time)
-                if ixs.gloda_db_update_time
-                else None,
+                "index_db_update_time": (
+                    str(ixs.index_db_update_time) if ixs.index_db_update_time else None
+                ),
+                "gloda_db_update_time": (
+                    str(ixs.gloda_db_update_time) if ixs.gloda_db_update_time else None
+                ),
                 "needs_update": ixs.needs_update,
                 "folder_count": len(folders),
                 "message_count": message_count,
@@ -254,9 +258,7 @@ class ThunderbirdWebserver(InputWebserver):
             }
 
         @app.get("/api/folders/{user}")
-        def api_folders(
-            user: str, _user: Optional[str] = Depends(require_api_user)
-        ):
+        def api_folders(user: str, _user: Optional[str] = Depends(require_api_user)):
             tb = api_tb(user)
             folders = tb.get_mailboxes_dod_from_sqldb(tb.index_db)
             lod = [
@@ -271,9 +273,12 @@ class ThunderbirdWebserver(InputWebserver):
 
         @app.get("/part/{user}/{mailid}/{part_index:int}")
         async def get_part(user: str, mailid: str, part_index: int):
-            return await self.get_part(
-                user, mailid, part_index
-            )
+            return await self.get_part(user, mailid, part_index)
+
+        @app.get("/partq/{user}/{part_index:int}")
+        async def get_part_with_query(user: str, part_index: int, mailid: str):
+            # mailid as query parameter for ids that carry slashes (see #45)
+            return await self.get_part(user, mailid, part_index)
 
         @app.get("/mail/{user}/{mailid}.wiki")
         def get_mail_wikimarkup(user: str, mailid: str):
@@ -292,47 +297,38 @@ class ThunderbirdWebserver(InputWebserver):
             mailid = client.request.query_params.get("mailid")
             return await self.page(client, ThunderbirdSolution.showMail, user, mailid)
 
-
         @ui.page("/mail/{user}/{mailid}")
-        async def showMail(client: Client,user: str, mailid: str):
-            return await self.page(
-                client,ThunderbirdSolution.showMail,
-                user, mailid
-            )
+        async def showMail(client: Client, user: str, mailid: str):
+            return await self.page(client, ThunderbirdSolution.showMail, user, mailid)
 
         @ui.page("/folder/{user}/{folder_path:path}")
-        async def showFolder(client: Client,user: str, folder_path: str):
+        async def showFolder(client: Client, user: str, folder_path: str):
             return await self.page(
-                client,ThunderbirdSolution.show_folder,
-                user, folder_path
+                client, ThunderbirdSolution.show_folder, user, folder_path
             )
 
         @ui.page("/profile/{user}/{profile_key}/mailboxes")
-        async def show_mailboxes(client: Client,user: str, profile_key: str):
+        async def show_mailboxes(client: Client, user: str, profile_key: str):
             return await self.page(
-                client,ThunderbirdSolution.show_mailboxes,
-                user, profile_key
+                client, ThunderbirdSolution.show_mailboxes, user, profile_key
             )
 
         @ui.page("/profile/{user}/{profile_key}/search")
-        async def show_search(client: Client,user: str, profile_key: str):
+        async def show_search(client: Client, user: str, profile_key: str):
             return await self.page(
-                client,ThunderbirdSolution.show_search,
-                user, profile_key
+                client, ThunderbirdSolution.show_search, user, profile_key
             )
 
         @ui.page("/profile/{user}/{profile_key}/index")
-        async def create_or_update_index(client: Client,user: str, profile_key: str):
+        async def create_or_update_index(client: Client, user: str, profile_key: str):
             return await self.page(
-                client,ThunderbirdSolution.create_or_update_index,
-                user, profile_key
+                client, ThunderbirdSolution.create_or_update_index, user, profile_key
             )
 
         @ui.page("/profile/{user}/{profile_key}")
-        async def show_folders(client: Client,user: str, profile_key: str):
+        async def show_folders(client: Client, user: str, profile_key: str):
             return await self.page(
-                client,ThunderbirdSolution.show_folders,
-                user, profile_key
+                client, ThunderbirdSolution.show_folders, user, profile_key
             )
 
     def configure_run(self):
@@ -385,7 +381,7 @@ class ThunderbirdWebserver(InputWebserver):
         Raises:
             HTTPException: If the user or the specified mail part does not exist, an HTTP exception could be raised.
 
-       """
+        """
         tb = self.mail_archives.mail_archives[user]
         mail = Mail(user=user, mailid=mailid, tb=tb, debug=self.debug)
         response = mail.part_as_fileresponse(part_index)
@@ -408,8 +404,8 @@ class ThunderbirdSolution(InputWebSolution):
         """
         super().__init__(webserver, client)  # Call to the superclass constructor
         self.tb = None
-        self.mail_archives=self.webserver.mail_archives
-        self.folder_mbox=None
+        self.mail_archives = self.webserver.mail_archives
+        self.folder_mbox = None
 
     async def show_mailboxes(self, user: str, profile_key: str):
         """
@@ -465,7 +461,7 @@ class ThunderbirdSolution(InputWebSolution):
 
         await self.setup_content_div(show_ui)
 
-    def update_mailboxes_grid(self,update_lod):
+    def update_mailboxes_grid(self, update_lod):
         with self.mailboxes_grid_container:
             self.mailboxes_grid.load_lod(update_lod)
             self.mailboxes_grid.sizeColumnsToFit()
@@ -474,28 +470,32 @@ class ThunderbirdSolution(InputWebSolution):
         """
         prepare and run indexing of mailboxes
         """
-        def update_grid(mailbox,message_count:int):
-            """
-            """
-            index=len(update_lod)+1
-            if index==1:
-                self.mailboxes_label.text=self.ixs.msg
 
-            mb_record=mailbox.as_view_record(index=index)
-            mb_record["count"]=message_count
+        def update_grid(mailbox, message_count: int):
+            """ """
+            index = len(update_lod) + 1
+            if index == 1:
+                self.mailboxes_label.text = self.ixs.msg
+
+            mb_record = mailbox.as_view_record(index=index)
+            mb_record["count"] = message_count
             update_lod.append(mb_record)
             self.update_mailboxes_grid(update_lod)
 
         try:
             update_lod = []
-            tb.do_create_or_update_index(ixs=self.ixs,progress_bar=progress_bar,callback=update_grid)
+            tb.do_create_or_update_index(
+                ixs=self.ixs, progress_bar=progress_bar, callback=update_grid
+            )
         except Exception as ex:
             self.handle_exception(ex)
 
     def run_prepare_indexing(self):
         try:
-            self.tb.prepare_mailboxes_for_indexing(ixs=self.ixs,progress_bar=self.progress_bar)
-            update_lod=self.ixs.get_update_lod()
+            self.tb.prepare_mailboxes_for_indexing(
+                ixs=self.ixs, progress_bar=self.progress_bar
+            )
+            update_lod = self.ixs.get_update_lod()
             self.update_mailboxes_grid(update_lod)
         except Exception as ex:
             self.handle_exception(ex)
@@ -504,23 +504,25 @@ class ThunderbirdSolution(InputWebSolution):
         """
         user interface to start create or updating index
         """
+
         async def on_prepare():
             """
             Handle the prepare button click
             """
             # force index db update time
-            self.tb.index_db_update_time=None
+            self.tb.index_db_update_time = None
             await run.io_bound(self.run_prepare_indexing)
-
 
         async def on_index():
             """
             Handle the reindex button click
             """
             self.ixs.force_create = self.force_create_checkbox.value
-            self.ixs.needs_update=True
+            self.ixs.needs_update = True
 
-            await run.io_bound(self.run_indexing, self.tb, progress_bar=self.progress_bar)
+            await run.io_bound(
+                self.run_indexing, self.tb, progress_bar=self.progress_bar
+            )
 
         def show_ui():
             """
@@ -531,13 +533,13 @@ class ThunderbirdSolution(InputWebSolution):
             else:
                 self.user = user
                 self.tb = self.mail_archives.mail_archives[user]
-                self.ixs=self.tb.get_indexing_state()
+                self.ixs = self.tb.get_indexing_state()
                 self.progress_bar = NiceguiProgressbar(
                     total=100, desc="updating index", unit="mailboxes"
                 )
                 with ui.row() as self.header_row:
-                    self.state_label=ui.label(self.ixs.state_msg)
-                    self.mailboxes_label=ui.label("")
+                    self.state_label = ui.label(self.ixs.state_msg)
+                    self.mailboxes_label = ui.label("")
                     self.force_create_checkbox = ui.checkbox("Force Create")
                     self.prepare_button = ui.button("Prepare", on_click=on_prepare)
                     self.reindex_button = ui.button("Reindex", on_click=on_index)
@@ -547,7 +549,6 @@ class ThunderbirdSolution(InputWebSolution):
 
         await self.setup_content_div(show_ui)
         await run.io_bound(self.run_indexing, self.tb, progress_bar=self.progress_bar)
-
 
     async def show_folders(self, user: str, profile_key: str) -> None:
         """
@@ -611,9 +612,13 @@ class ThunderbirdSolution(InputWebSolution):
         def show():
             try:
                 self.tb = Thunderbird.get(user)
-                self.folder_mbox = ThunderbirdMailbox(self.tb, folder_path, use_relative_path=True)
+                self.folder_mbox = ThunderbirdMailbox(
+                    self.tb, folder_path, use_relative_path=True
+                )
                 self.folder_view = ui.html()
-                self.folder_view.content = f"Loading {self.folder_mbox.relative_folder_path} ..."
+                self.folder_view.content = (
+                    f"Loading {self.folder_mbox.relative_folder_path} ..."
+                )
                 grid_config = GridConfig(key_col="email_index")
                 self.folder_grid = ListOfDictsGrid(config=grid_config)
                 self.folder_grid.html_columns = [1, 2]
@@ -622,7 +627,6 @@ class ThunderbirdSolution(InputWebSolution):
 
         await self.setup_content_div(show)
         await run.io_bound(show_index)
-
 
     async def showMail(self, user: str, mailid: str):
         """
